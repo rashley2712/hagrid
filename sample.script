@@ -1,0 +1,30 @@
+echo on
+set plotwindowsize 12
+load r379556-2.fits.fz
+draw original
+set maglimit 22
+get cat dr2
+get cat usno
+plot cat dr2
+plot cat usno
+mask dr2
+mask usno
+mask border
+# apply
+set superpixelsize 25
+make pixels
+set spacinglimit 1
+get pointings 50 top
+plot object top
+type object top
+draw object top 1 preview
+clear
+draw original
+get pointings -50 bottom
+plot object top
+set colour b
+plot object bottom
+dump image {root}.png
+dump top {root}.sources.fits fits 
+dump bottom {root}.sky.fits fits 
+
