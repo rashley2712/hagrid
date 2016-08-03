@@ -7,7 +7,7 @@ class commandClass(cmd.Cmd):
 	
 	
 	"""Simple command processor example."""
-	prompt = 'hagrid: '
+	prompt = 'hagrid> '
 	# Disable rawinput module use
 	use_rawinput = False
 	# Do not show a prompt after each command read
@@ -53,7 +53,7 @@ class commandClass(cmd.Cmd):
 			self.run_script(scriptname)
 			return "NOP"
 			
-		if self.echo: print "iphas> ", line
+		if self.echo: print "hagrid> ", line
 		return line
 		
 	def do_echo(self, line):
