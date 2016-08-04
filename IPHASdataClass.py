@@ -71,6 +71,13 @@ class Pointing:
 		jsonObject['mean'] = float(self.mean)
 		jsonObject['peak'] = float(self.peak)
 		return json.dumps(jsonObject)
+	
+chipNames = {
+	'CCD1': 'A5506-4',
+	'CCD2': 'A5383-17-7',
+	'CCD3': 'A5530-3',
+	'CCD4': 'A5382-1-7'
+}
 		
 catalogMetadata = {
 	'tycho': {

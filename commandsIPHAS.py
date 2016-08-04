@@ -239,6 +239,14 @@ class commandClass(cmd.Cmd):
 		
 		
 	def do_mask(self, line):
+		""" mask an area of the CCD 
+		examples
+		mask [catalog_name] will mask all the sources in a certain catalog
+		mask border will mask the border areas of the CCD with the width set by 'borderwidth'
+		mask badpixels will mask out all of the bad pixels for that CCD [1-4]
+		"""
+		params = line.split()
+		
 		self.IPHASdata.maskCatalog(line)
 		return
 		
