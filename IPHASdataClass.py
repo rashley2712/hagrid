@@ -148,6 +148,7 @@ class IPHASdataClass:
 		self.fullDebug = False
 		self.objectStore = {}
 		self.activeColour = 'r'
+		self.CCD = "unknown"
 		return None
 		
 	def setProperty(self, property, value):
@@ -206,7 +207,16 @@ class IPHASdataClass:
 		self.centre = (ra, dec)
 		positionString = generalUtils.toSexagesimal((ra, dec))
 		print "RA, DEC of image centre is: ", positionString, ra, dec
-		
+		try:
+			ccdidentifier = self.FITSHeaders['CCDNAME']
+			for k in chipNames.keys():
+				print "chipname", chipNames[k]
+				if ccdidentifier==chipNames[k]:
+					self.CCD = k
+			print "CCD is:", self.CCD
+		except Exception as e:
+			print "WARNING: Could not identify CCD number (1, 2, 3 or 4)"
+			print e
 		hdulist.close()
 		
 	def showVizierCatalogs(self):
