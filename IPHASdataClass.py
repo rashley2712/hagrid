@@ -428,7 +428,39 @@ class IPHASdataClass:
 		matplotlib.pyplot.pause(0.01)
 		
 		return
+	
+	def maskBadPixels(self):
+		print "About to mask out the bad pixels for %s"%self.CCD
 		
+		installPath = os.path.realpath(__file__).rsplit('/',1)[0]
+		print "Looking for a local copy in", installPath
+		bpmName = "bpm_" + self.CCD + ".fits.fz"
+		url = "http://www.devicecloud.co.uk/WFC/" + bpmName
+		bpmFilename = installPath + "/" + bpmName
+		if not os.path.exists(bpmFilename):
+			generalUtils.downloadFITS(url, bpmFilename)
+		
+		hdulist = fits.open(bpmFilename)
+		FITSHeaders = []
+		self.badPixelMask = hdulist[0].data
+		# print "old shape:", numpy.shape(self.badPixelMask)
+		
+		# Trim the bad pixel mask to match observed image size
+		startX = 51
+		startY = 1
+		self.badPixelMask = self.badPixelMask[startY:startY+4200, startX:startX+2048]
+		# print "new shape:", numpy.shape(self.badPixelMask)
+		# print "reqd shape:", numpy.shape(self.originalImageData)
+		
+		if self.mask is None:
+			self.mask = numpy.zeros(numpy.shape(self.originalImageData))
+			print "Creating a new blank mask of size:", numpy.shape(self.mask)
+
+		isMasked = self.badPixelMask!=0
+		self.mask[isMasked] = 132
+		self.drawMask()
+		return
+			
 			
 	def maskCatalog(self, catalogName):
 		if self.mask is None:

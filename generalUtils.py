@@ -14,6 +14,17 @@ def percentiles(data, lo, hi):
     data-= pLo
     data/=scale
     return data
+    
+def downloadFITS(url, outputFilename):
+	print "Preparing download of ", url
+	import subprocess
+	wgetCommand = ["wget"]
+	wgetCommand.append(url)
+	wgetCommand.append('-O')
+	wgetCommand.append(outputFilename)
+					
+	subprocess.call(wgetCommand)
+	
 	
 def gridCircle(x0, y0, radius, grid):
 	""" Draws a circle into a grid (array) with x, y as centre and radius.

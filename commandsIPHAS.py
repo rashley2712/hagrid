@@ -246,7 +246,10 @@ class commandClass(cmd.Cmd):
 		mask badpixels will mask out all of the bad pixels for that CCD [1-4]
 		"""
 		params = line.split()
-		
+		if params[0]=="badpixels":
+			self.IPHASdata.maskBadPixels()
+			return
+			
 		self.IPHASdata.maskCatalog(line)
 		return
 		
