@@ -253,6 +253,15 @@ class commandClass(cmd.Cmd):
 		self.IPHASdata.maskCatalog(line)
 		return
 		
+	def do_trim(self, line):
+		""" trim the sources from 50 down to just the ones that are statistically significant
+		trim [top] [bottom] 
+		"""
+		params = line.split()
+		self.IPHASdata.trim(params[0], params[1])
+		return
+		
+		
 	def do_cats(self, line):
 		self.IPHASdata.showVizierCatalogs()
 		return

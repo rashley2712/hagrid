@@ -210,7 +210,6 @@ class IPHASdataClass:
 		try:
 			ccdidentifier = self.FITSHeaders['CCDNAME']
 			for k in chipNames.keys():
-				print "chipname", chipNames[k]
 				if ccdidentifier==chipNames[k]:
 					self.CCD = k
 			print "CCD is:", self.CCD
@@ -871,6 +870,20 @@ class IPHASdataClass:
 			objectTable.write(filename, format='fits', overwrite=True)
 			return
 		
+	
+	def trim(self, topObject, bottomObject):
+		print "Going to trim from %s and %s"%(topObject, bottomObject)
+		topSources = self.getStoredObject(topObject)
+		bottomSources = self.getStoredObject(bottomObject)
+		topMeans = [t.mean for t in topSources]
+		bottomMeans = [b.mean for b in bottomSources]
+		print topMeans
+		print bottomMeans
+		topRange = numpy.max(topMeans) - numpy.min(topMeans)
+		extendedRange = numpy.min(topMeans) - topRange
+		if extendedRange<0: extendedRange = 0
+		print numpy.max(topMeans), numpy.min(topMeans), topRange, extendedRange
+		return
 		
 	def listPixels(self, number=0):
 		for index, s in enumerate(self.superPixelList):
