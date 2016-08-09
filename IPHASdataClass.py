@@ -446,9 +446,9 @@ class IPHASdataClass:
 		# print "old shape:", numpy.shape(self.badPixelMask)
 		
 		# Trim the bad pixel mask to match observed image size
-		startX = 51
+		startX = 47
 		startY = 1
-		self.badPixelMask = self.badPixelMask[startY:startY+4200, startX:startX+2048]
+		self.badPixelMask = self.badPixelMask[startY:startY+4096, startX:startX+2048]
 		# print "new shape:", numpy.shape(self.badPixelMask)
 		# print "reqd shape:", numpy.shape(self.originalImageData)
 		
@@ -456,6 +456,17 @@ class IPHASdataClass:
 			self.mask = numpy.zeros(numpy.shape(self.originalImageData))
 			print "Creating a new blank mask of size:", numpy.shape(self.mask)
 
+		if self.CCD == "CCD3":
+			# Add a clipped area to the vignetted part of CCD3
+			vignetteMask = numpy.zeros(numpy.shape(self.originalImageData))
+			for x in range(280):
+				ylim = int(x*(-1.214) + 340)
+				for y in range(ylim):
+					vignetteMask[y,x] = 132
+			cornerMask = vignetteMask == 132
+			self.mask[cornerMask] = 132
+	
+	
 		isMasked = self.badPixelMask!=0
 		self.mask[isMasked] = 132
 		self.drawMask()
