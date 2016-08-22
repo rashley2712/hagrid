@@ -12,12 +12,12 @@ import astroquery
 import matplotlib.pyplot
 
 def distance(p1, p2):
+
 	return math.sqrt( (p1[0]-p2[0])**2 + (p1[1]-p2[1])**2 )
 	
 def distanceP(p1, p2):
 	return math.sqrt( (p1.x-p2.x)**2 + (p1.y-p2.y)**2)
-	
-	
+		
 class Pointing:
 	def __init__(self):
 		self.x1 = 0
@@ -534,11 +534,11 @@ class IPHASdataClass:
 		
 		for index, o in enumerate(objects):
 			position = o.getPixelPosition()
-			print position
+			# print position
 			# matplotlib.pyplot.plot(o.x, o.y, color = 'r', marker='o', markersize=25, lw=4, fillstyle='none')
 			xoffset = o.maxPosition[1]
 			yoffset = self.superPixelSize - 2 - o.maxPosition[0]
-			print "offsets", xoffset, yoffset
+			# print "offsets", xoffset, yoffset
 			matplotlib.pyplot.plot(o.x1 + xoffset, o.y1 + yoffset , color = colour, marker='o', markersize=15, mew=3, fillstyle='none')
 			matplotlib.pyplot.annotate(str(index), (o.x1+xoffset+20, o.y1+yoffset), color=colour, fontweight='bold', fontsize=15)
 			# if index==2: break
@@ -596,28 +596,6 @@ class IPHASdataClass:
 		self.figure.add_axes(axes)
 		imgplot = matplotlib.pyplot.imshow(mplFrame, cmap="gray_r", interpolation='nearest')
 		
-		verts = []
-		for b in self.boundingBox:
-			print b
-			y, x = self.wcsSolution.all_world2pix(b[0], b[1], 1, ra_dec_order=True)
-			coord  = (float(x), float(y))
-			print coord
-			verts.append(coord)	
-			
-		verts.append((0, 0))
-			
-		print verts
-		codes = [Path.MOVETO,
-		         Path.LINETO,
-		         Path.LINETO,
-		         Path.LINETO,
-		         Path.CLOSEPOLY,
-		         ]
-
-		path = Path(verts, codes)
-
-		patch = matplotlib.patches.PathPatch(path, fill=None, lw=2)
-		axes.add_patch(patch)
 		matplotlib.pyplot.draw()
 		matplotlib.pyplot.show(block=False)
 		matplotlib.pyplot.draw()
@@ -872,17 +850,87 @@ class IPHASdataClass:
 		
 	
 	def trim(self, topObject, bottomObject):
+		
+		import scipy.optimize
+
+		def exponentialDecay(x, a0, a1, a2):
+			y = a0 * numpy.exp(a1 *x) + a2
+			return y
+		
+		def exponentialRise(x, a0, a1, a2):
+			y = a2 - (a2-a0) * numpy.exp(a1 *x) 
+			return y
+		
+		
 		print "Going to trim from %s and %s"%(topObject, bottomObject)
 		topSources = self.getStoredObject(topObject)
 		bottomSources = self.getStoredObject(bottomObject)
 		topMeans = [t.mean for t in topSources]
 		bottomMeans = [b.mean for b in bottomSources]
-		print topMeans
-		print bottomMeans
+		#print topMeans
+		#print bottomMeans
 		topRange = numpy.max(topMeans) - numpy.min(topMeans)
-		extendedRange = numpy.min(topMeans) - topRange
-		if extendedRange<0: extendedRange = 0
-		print numpy.max(topMeans), numpy.min(topMeans), topRange, extendedRange
+		bottomRange = numpy.max(bottomMeans) - numpy.min(bottomMeans)
+		print "Top:", numpy.max(topMeans), numpy.min(topMeans), topRange
+		print "Bottom:", numpy.max(bottomMeans), numpy.min(bottomMeans), bottomRange
+		
+		# Plot top means
+		chart = matplotlib.pyplot.figure("Mean values", figsize=(10, 8))
+		axes = matplotlib.pyplot.gca()
+		axes.set_xlabel("Superpixel rank")
+		axes.set_ylabel("Mean counts")
+		chart.add_axes(axes)
+		matplotlib.pyplot.plot(topMeans, color='r')
+		xfit = numpy.arange(0, len(topSources))
+		a0 = numpy.max(topMeans) - numpy.min(topMeans)
+		a1 = -0.05
+		a2 = numpy.min(topMeans)
+		guess = [a0, a1, a2]
+		results, covariance = scipy.optimize.curve_fit(exponentialDecay, xfit, topMeans, guess)
+		print "fit result:", results
+		errors = numpy.sqrt(numpy.diag(covariance))
+		print "fit errors:", errors
+		a0 = results[0]
+		a1 = results[1]
+		a2 = results[2]
+		yfit = exponentialDecay(xfit, a0, a1, a2)
+		matplotlib.pyplot.plot(yfit, color='r', ls='dashed')
+		topFolding = -1 / a1
+		
+		xfit = numpy.arange(0, len(bottomSources))
+		a0 = numpy.min(bottomMeans)
+		a1 = -0.1
+		a2 = numpy.max(bottomMeans)
+		guess = [a0, a1, a2]
+		results, covariance = scipy.optimize.curve_fit(exponentialRise, xfit, bottomMeans, guess)
+		print "fit result:", results
+		errors = numpy.sqrt(numpy.diag(covariance))
+		print "fit errors:", errors
+		a0 = results[0]
+		a1 = results[1]
+		a2 = results[2]
+		yfit = exponentialRise(xfit, a0, a1, a2)
+		matplotlib.pyplot.plot(yfit, color='b', ls='dashed')
+		bottomFolding = -1 / a1
+		
+		matplotlib.pyplot.plot(bottomMeans, color='b')
+		matplotlib.pyplot.draw()
+		matplotlib.pyplot.show(block=False)
+		matplotlib.pyplot.pause(0.01)
+		
+		print "Top e-folding after %d pixels."%topFolding
+		print "Bottom e-folding after %d pixels."%bottomFolding
+		
+		if topFolding<len(topSources):
+			trimmedTop = []
+			for index in range(int(topFolding)): trimmedTop.append(topSources[index])
+			self.objectStore[topObject] = trimmedTop
+			
+		if bottomFolding<len(bottomSources):
+			trimmedBottom = []
+			for index in range(int(bottomFolding)): trimmedBottom.append(bottomSources[index])
+			self.objectStore[bottomObject] = trimmedBottom
+		
 		return
 		
 	def listPixels(self, number=0):
