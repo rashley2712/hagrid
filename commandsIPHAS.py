@@ -70,6 +70,7 @@ class commandClass(cmd.Cmd):
 			return "NOP"
 		except IOError as e:
 			print "Could not find the script:", scriptname
+			print e
 			return 
 			
 	def do_reload(self, line):

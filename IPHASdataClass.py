@@ -188,6 +188,7 @@ class IPHASdataClass:
 		self.filename = filename
 		self.rootname = filename.split(".")[0]
 		FITSHeaders = []
+		self.rawHeaders = hdulist[0].header
 		for card in hdulist:
 			# print(card.header.keys())
 			# print(repr(card.header))
@@ -836,6 +837,7 @@ class IPHASdataClass:
 				if o.type=="Minimum": id = "sky-" + self.rootname + "-%02d"%index
 				ids.append(id)
 			objectTable['id'] = ids
+			objectTable['CCD'] = [int(self.CCD[-1]) for o in objects]
 			objectTable['ra'] = [o.ra for o in objects]
 			objectTable['dec'] = [o.dec for o in objects]
 			objectTable['xmax'] = [o.AbsoluteLocationPixels[0] for o in objects]
@@ -845,6 +847,22 @@ class IPHASdataClass:
 			objectTable['variance'] = [o.varppixel for o in objects]
 			objectTable['type'] = [o.type for o in objects]
 			
+			hdu = fits.PrimaryHDU()
+			n1 = [o.ra for o in objects]
+			col1 = fits.Column(name='ra', format='E', array = n1)
+			cols = fits.ColDefs([col1])
+			tbhdu = fits.BinTableHDU.from_columns(cols)
+			hdulist = fits.HDUList([hdu, tbhdu])
+			"""for key in self.FITSHeaders.keys():
+				print key, self.FITSHeaders[key]
+				try:
+					hdulist[0].header[key] = str(self.FITSHeaders[key]).encode("ascii")
+				except ValueError:
+					print "Warning... could not encode header in ascii"
+				"""
+			hdulist[0].header = self.rawHeaders			
+			print repr(hdulist[0].header)
+			hdu.writeto('new.fits', clobber=True)
 			objectTable.write(filename, format='fits', overwrite=True)
 			return
 		
@@ -899,7 +917,7 @@ class IPHASdataClass:
 		
 		xfit = numpy.arange(0, len(bottomSources))
 		a0 = numpy.min(bottomMeans)
-		a1 = -0.1
+		a1 = -0.05
 		a2 = numpy.max(bottomMeans)
 		guess = [a0, a1, a2]
 		results, covariance = scipy.optimize.curve_fit(exponentialRise, xfit, bottomMeans, guess)
@@ -912,6 +930,10 @@ class IPHASdataClass:
 		yfit = exponentialRise(xfit, a0, a1, a2)
 		matplotlib.pyplot.plot(yfit, color='b', ls='dashed')
 		bottomFolding = -1 / a1
+		if topFolding<len(topSources):
+			matplotlib.pyplot.plot([topFolding, topFolding],  [axes.get_ylim()[0], axes.get_ylim()[1]],  color='r', ls='dotted')
+		if bottomFolding<len(bottomSources):
+			matplotlib.pyplot.plot([bottomFolding, bottomFolding],  [axes.get_ylim()[0], axes.get_ylim()[1]],  color='b', ls='dotted')
 		
 		matplotlib.pyplot.plot(bottomMeans, color='b')
 		matplotlib.pyplot.draw()
