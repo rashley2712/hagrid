@@ -1,0 +1,31 @@
+echo on
+set plotwindowsize 12
+load {filename}
+draw original
+set maglimit 22
+get cat dr2
+get cat usno
+plot cat dr2
+plot cat usno
+mask usno
+dump image {workingpath}/{root}_catalog.png
+mask dr2
+mask border
+mask badpixels
+# apply
+set superpixelsize 25
+make pixels
+set spacinglimit 1
+get pointings 50 top
+set spacinglimit 5
+get pointings -7 bottom
+#trim top bottom
+clear
+draw original
+plot object top
+set colour b
+plot object bottom
+dump image {workingpath}/{root}.png
+dump top {workingpath}/{root}.sources.fits fits 
+dump bottom {workingpath}/{root}.sky.fits fits 
+quit
