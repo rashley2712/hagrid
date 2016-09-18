@@ -10,6 +10,7 @@ import numpy, math, os, sys, json
 import generalUtils
 import astroquery
 import matplotlib.pyplot
+import datetime
 
 def distance(p1, p2):
 
@@ -149,6 +150,7 @@ class IPHASdataClass:
 		self.objectStore = {}
 		self.activeColour = 'r'
 		self.CCD = "unknown"
+		self.seeing = 0
 		return None
 		
 	def setProperty(self, property, value):
@@ -217,6 +219,12 @@ class IPHASdataClass:
 		except Exception as e:
 			print "WARNING: Could not identify CCD number (1, 2, 3 or 4)"
 			print e
+		
+		try:
+			self.seeing = self.FITSHeaders['SEEING']
+		except Exception as e:
+			print "WARNING: Could not find the 'seeing' value for this image in the FITS headers."
+			
 		hdulist.close()
 		
 	def showVizierCatalogs(self):
@@ -836,34 +844,36 @@ class IPHASdataClass:
 				id = self.rootname + "-%02d"%index
 				if o.type=="Minimum": id = "sky-" + self.rootname + "-%02d"%index
 				ids.append(id)
-			objectTable['id'] = ids
-			objectTable['CCD'] = [int(self.CCD[-1]) for o in objects]
-			objectTable['ra'] = [o.ra for o in objects]
-			objectTable['dec'] = [o.dec for o in objects]
-			objectTable['xmax'] = [o.AbsoluteLocationPixels[0] for o in objects]
-			objectTable['ymax'] = [o.AbsoluteLocationPixels[1] for o in objects]
-			objectTable['mean'] = [o.mean for o in objects]
-			objectTable['peak'] = [o.peak for o in objects]
-			objectTable['variance'] = [o.varppixel for o in objects]
-			objectTable['type'] = [o.type for o in objects]
 			
 			hdu = fits.PrimaryHDU()
-			n1 = [o.ra for o in objects]
-			col1 = fits.Column(name='ra', format='E', array = n1)
-			cols = fits.ColDefs([col1])
+			cols = []
+			cols.append(fits.Column(name='id', format='16A', array = ids))
+			cols.append(fits.Column(name='ra', format='E', array = [o.ra for o in objects]))
+			cols.append(fits.Column(name='dec', format = 'E', array = [o.dec for o in objects]))
+			cols.append(fits.Column(name='xmax', format = 'E', array = [o.AbsoluteLocationPixels[0] for o in objects]))
+			cols.append(fits.Column(name='ymax', format = 'E', array = [o.AbsoluteLocationPixels[1] for o in objects]))
+			cols.append(fits.Column(name='mean', format = 'E', array = [o.mean for o in objects]))
+			cols.append(fits.Column(name='peak', format = 'E', array = [o.mean for o in objects]))
+			cols.append(fits.Column(name='variance', format = 'E', array = [o.mean for o in objects]))
+			cols.append(fits.Column(name='type', format = '8A', array = [o.type for o in objects]))
+			cols = fits.ColDefs(cols)
 			tbhdu = fits.BinTableHDU.from_columns(cols)
-			hdulist = fits.HDUList([hdu, tbhdu])
-			"""for key in self.FITSHeaders.keys():
-				print key, self.FITSHeaders[key]
+			
+			prihdr = fits.Header()
+			prihdr['COMMENT'] = "Created by Hagrid on %s at "%( datetime.datetime.ctime(datetime.datetime.now()))
+			
+			for key in self.FITSHeaders.keys():
 				try:
-					hdulist[0].header[key] = str(self.FITSHeaders[key]).encode("ascii")
+					# prihdr[key] = str(self.FITSHeaders[key]).encode("ascii")
+					prihdr[key] = self.FITSHeaders[key]
 				except ValueError:
-					print "Warning... could not encode header in ascii"
-				"""
-			hdulist[0].header = self.rawHeaders			
-			print repr(hdulist[0].header)
-			hdu.writeto('new.fits', clobber=True)
-			objectTable.write(filename, format='fits', overwrite=True)
+					print "Warning... could not transfer the header %s to the new FITS file."%(key)
+			
+			prihdu = fits.PrimaryHDU(header=prihdr)
+			thdulist = fits.HDUList([prihdu, tbhdu])
+			thdulist.writeto(filename, clobber=True)
+			
+			
 			return
 		
 	
