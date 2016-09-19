@@ -1,21 +1,8 @@
 #!/usr/bin/env python
 
-import os, sys, json, argparse, shutil, re, subprocess
+import os, sys, json, argparse, shutil, re, subprocess, datetime
+from astropy.io import fits
 
-def compareCollections(collection1, collection2):
-	# Check to see if two collections have the same filenames in them
-	if len(collection1.objectList) != len(collection2.objectList):
-		print "The two lists are different lengths. Have you added/removed files since creating the status file?"
-	for c in collection1.objectList:
-		filename = c['filename']
-		found = False
-		for c2 in collection2.objectList:
-			if c2['filename'] == filename:
-				found = True
-		if not found:
-			print "warning:", filename, "is not found in both lists"
-			return False
-	return True
 
 class FITScollection:
 	def __init__(self):
@@ -73,14 +60,64 @@ class FITScollection:
 				
 	def __str__(self):
 		return "%d objects in the list."%len(self.objectList)
-		
 	
+class FITSdata:
+	def __init__(self):
+		self.sources = []
+		
+	def appendFromFile(self, filename):
+		hdulist = fits.open(filename)
+		header = hdulist[0].header
+		# print(repr(header))
+		tableData = hdulist[1].data
+		#print tableData
+		cols = hdulist[1].columns
+		added = 0
+		for d in tableData:
+			rowObject = {}
+			for c in cols.names:
+				rowObject[c] = d[c]
+			# print rowObject
+			added+= 1
+			self.sources.append(rowObject)
+		return (added, len(self.sources))
+		
+	def sort(self):
+		self.sources = sorted(self.sources, key=lambda object: object['mean'], reverse = True)
+		
+	def writeToFile(self, filename):
+		objects = self.sources
+		hdu = fits.PrimaryHDU()
+		cols = []
+		cols.append(fits.Column(name='id', format='16A', array = [o['id'] for o in objects]))
+		cols.append(fits.Column(name='ra', format='E', array = [o['ra'] for o in objects]))
+		cols.append(fits.Column(name='dec', format = 'E', array = [o['dec'] for o in objects]))
+		cols.append(fits.Column(name='xmax', format = 'E', array = [o['xmax'] for o in objects]))
+		cols.append(fits.Column(name='ymax', format = 'E', array = [o['ymax'] for o in objects]))
+		cols.append(fits.Column(name='mean', format = 'E', array = [o['mean'] for o in objects]))
+		cols.append(fits.Column(name='peak', format = 'E', array = [o['peak'] for o in objects]))
+		cols.append(fits.Column(name='variance', format = 'E', array = [o['variance'] for o in objects]))
+		cols.append(fits.Column(name='type', format = '8A', array = [o['type'] for o in objects]))
+		cols.append(fits.Column(name='CCD', format = '4A', array = [o['CCD'] for o in objects]))
+		cols = fits.ColDefs(cols)
+		tbhdu = fits.BinTableHDU.from_columns(cols)
+			
+		prihdr = fits.Header()
+		prihdr['COMMENT'] = "Created by Hagrid (mergeOutput) on %s."%( datetime.datetime.ctime(datetime.datetime.now()))
+			
+		prihdu = fits.PrimaryHDU(header=prihdr)
+		thdulist = fits.HDUList([prihdu, tbhdu])
+		thdulist.writeto(filename, clobber=True)
+	
+
 
 if __name__ == '__main__':
 	
-	parser = argparse.ArgumentParser(description='A simple Python tool to run hagrid in a batch mode over a folder full of files.')
+	parser = argparse.ArgumentParser(description='Merge the output files produced by Hagrid into one big FITS file.')
+	parser.add_argument('output', type=str, help = "The output filename. It will be a FITS file.")
 	parser.add_argument('-p', '--path', type=str, help='The folder in which the IPHAS images are contained.')
 	parser.add_argument('-w', '--workingpath', type=str, help='A root folder for the temporary and output files.')
+	parser.add_argument('-s', '--sky', action='store_true', help='Look for sky pointings rather than bright sources.')
 	arg = parser.parse_args()
 	print arg
 
@@ -100,11 +137,15 @@ if __name__ == '__main__':
 		print "The folder for the source data %s could not be found. Exiting."%dataPath
 		sys.exit()
 	
-	searchString = "r.*.fits.fz"
+	searchString = "r[0-9]{6}-[1-4].sources.fits"
+	if arg.sky:
+		searchString = "r[0-9]{6}-[1-4].sky.fits"
 	search_re = re.compile(searchString)
 		 
 	(_, _, filenames) = os.walk(dataPath).next()
 	allObjects = FITScollection()
+	print "looking for matches to:", searchString
+	
 	for file in filenames:
 		m = search_re.match(file)
 		if (m): 
@@ -113,50 +154,18 @@ if __name__ == '__main__':
 	print allObjects
 	allObjects.sort()
 	
-	# Second, check to see if the working directory already exists
-	if not os.path.exists(workingPath):
-		print("Creating folder %s"%workingPath)
-		os.makedirs(workingPath)
+	
+	dataObject = FITSdata()
+
+	for index, f in enumerate(allObjects.objectList):
+		numAdded, total = dataObject.appendFromFile(f['filename'])
+		print "Added %d new rows from data in %s. Total: %d"%(numAdded, f['filename'], total)
+	
+	dataObject.sort()
+	
+	print "Writing %d rows to %s."%(len(dataObject.sources), arg.output)
+	dataObject.writeToFile(arg.output)
 		
-	# Third check to see if a status.csv file exists, if so load it.
-	if os.path.exists(workingPath + "/status.csv"):
-		print "found an existing 'status.csv' file. Loading it."
-		existingStatus = FITScollection()
-		existingStatus.loadFromCSV(workingPath + "/status.csv")
-		compareCollections(allObjects, existingStatus)
-		allObjects.updateStatus(existingStatus)
-	
-	allObjects.writeToCSV(workingPath + "/status.csv")	
-	
-	
-	for index, o in enumerate(allObjects.objectList):
-		status = o['processed']
-		filename = o['filename']
-		if status == True: 
-			print "skipping", filename
-			continue
-	
-		print "Processing", filename
-	
-		# Load the setup template
-		setupFile = open(workingPath + "/script.template", 'rt')
-		templateString = setupFile.read()
-		setupFile.close()
-		# Fill the template
-		templateString = templateString.format(filename = filename, workingpath = workingPath, root = '{root}')
-		# Write it to a script file
-		setupFile = open(workingPath + "/script.hagrid", 'wt')
-		setupFile.write(templateString)
-		setupFile.close()
-	
-		hagridCommand = ["hagrid"]
-		hagridCommand.append(workingPath + '/script.hagrid')
-					
-		subprocess.call(hagridCommand)
-	
-		o['processed'] = True
-		allObjects.writeToCSV(workingPath + "/status.csv")	
-	
+
 		
-	
 	

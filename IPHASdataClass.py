@@ -853,14 +853,15 @@ class IPHASdataClass:
 			cols.append(fits.Column(name='xmax', format = 'E', array = [o.AbsoluteLocationPixels[0] for o in objects]))
 			cols.append(fits.Column(name='ymax', format = 'E', array = [o.AbsoluteLocationPixels[1] for o in objects]))
 			cols.append(fits.Column(name='mean', format = 'E', array = [o.mean for o in objects]))
-			cols.append(fits.Column(name='peak', format = 'E', array = [o.mean for o in objects]))
-			cols.append(fits.Column(name='variance', format = 'E', array = [o.mean for o in objects]))
+			cols.append(fits.Column(name='peak', format = 'E', array = [o.peak for o in objects]))
+			cols.append(fits.Column(name='variance', format = 'E', array = [o.varppixel for o in objects]))
 			cols.append(fits.Column(name='type', format = '8A', array = [o.type for o in objects]))
+			cols.append(fits.Column(name='CCD', format = '4A', array = [self.CCD for i in objects]))
 			cols = fits.ColDefs(cols)
 			tbhdu = fits.BinTableHDU.from_columns(cols)
 			
 			prihdr = fits.Header()
-			prihdr['COMMENT'] = "Created by Hagrid on %s at "%( datetime.datetime.ctime(datetime.datetime.now()))
+			prihdr['COMMENT'] = "Created by Hagrid on %s."%( datetime.datetime.ctime(datetime.datetime.now()))
 			
 			for key in self.FITSHeaders.keys():
 				try:
