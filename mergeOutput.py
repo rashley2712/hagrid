@@ -117,7 +117,7 @@ if __name__ == '__main__':
 	parser.add_argument('output', type=str, help = "The output filename. It will be a FITS file.")
 	parser.add_argument('-p', '--path', type=str, help='The folder in which the IPHAS images are contained.')
 	parser.add_argument('-w', '--workingpath', type=str, help='A root folder for the temporary and output files.')
-	parser.add_argument('-s', '--sky', action='store_true', help='Look for sky pointings rather than bright sources.')
+	# parser.add_argument('-s', '--sky', action='store_true', help='Look for sky pointings rather than bright sources.')
 	arg = parser.parse_args()
 	print arg
 
@@ -137,23 +137,30 @@ if __name__ == '__main__':
 		print "The folder for the source data %s could not be found. Exiting."%dataPath
 		sys.exit()
 	
-	searchString = "r[0-9]{6}-[1-4].sources.fits"
-	if arg.sky:
-		searchString = "r[0-9]{6}-[1-4].sky.fits"
-	search_re = re.compile(searchString)
+	sourcesPattern = re.compile("r[0-9]{6}-[1-4].sources.fits")
+	skyPattern = re.compile("r[0-9]{6}-[1-4].sky.fits")
 		 
 	(_, _, filenames) = os.walk(dataPath).next()
-	allObjects = FITScollection()
-	print "looking for matches to:", searchString
+	allSources = FITScollection()
+	allSky = FITScollection()
+	
 	
 	for file in filenames:
-		m = search_re.match(file)
+		m = sourcesPattern.match(file)
 		if (m): 
-			allObjects.additem(file)
+			allSources.additem(file)
+		m = skyPattern.match(file)
+		if (m): 
+			allSky.additem(file)
 
-	print allObjects
-	allObjects.sort()
+	print "Sources:", allSources
+	allSources.sort()
+	print "Sky:", allSky
+	allSky.sort()
 	
+	
+	
+	sys.exit()
 	
 	dataObject = FITSdata()
 
