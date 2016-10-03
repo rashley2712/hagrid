@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 
-import os, sys, json, argparse, shutil, re, subprocess, datetime
+import os, sys, json, argparse, shutil, re, subprocess, datetime, numpy
 from astropy.io import fits
+import matplotlib.pyplot
 
 
 class FITScollection:
@@ -66,57 +67,119 @@ class sourcesClass:
 	def __init__(self):
 		self.HaSources = []
 		self.skySources = []
+		self.trimmedSources = []
+		self.trimmedSky = []
 		
 	def addSourcesFromFITS(self, filename, sky=False):
-		hdulist = fits.open(filename)
-		header = hdulist[0].header
-		# print(repr(header))
-		tableData = hdulist[1].data
-		#print tableData
-		cols = hdulist[1].columns
-		added = 0
-		for d in tableData:
-			rowObject = {}
-			for c in cols.names:
-				rowObject[c] = d[c]
-			# print rowObject
-			added+= 1
-			if not sky:
-				self.HaSources.append(rowObject)
-				totalRows = len(self.HaSources)
-			else:
-				self.skySources.append(rowObject)
-				totalRows = len(self.skySources)
+		try:
+			hdulist = fits.open(filename)
+			header = hdulist[0].header
+			tableData = hdulist[1].data
+			cols = hdulist[1].columns
+			added = 0
+			for d in tableData:
+				rowObject = {}
+				for c in cols.names:
+					rowObject[c] = d[c]
+				added+= 1
+				if not sky:
+					self.HaSources.append(rowObject)
+					totalRows = len(self.HaSources)
+				else:
+					self.skySources.append(rowObject)
+					totalRows = len(self.skySources)
+		except IOError as e:
+			print "Could not load: %s"%filename
+			return (-1, -1)
+			
 		return (added, totalRows)
 		  
 	def printSources(self):
 		for h in self.HaSources:
 			print h
+		for h in self.skySources:
+			print h
 			
+	def trimSources(self):
+		sourceArray = [ s['mean'] for s in self.HaSources ]
+		skyArray = [s['mean'] for s in self.skySources ]
+		
+		sourceMean = numpy.mean(sourceArray[3:])
+		self.trimmedSources = []
+		for s in self.HaSources: 
+			if s['mean'] > sourceMean: self.trimmedSources.append(s)
+		
+		skyMean = numpy.mean(skyArray[3:])
+		self.trimmedSky = []
+		for s in self.skySources: 
+			if s['mean'] > skyMean: self.trimmedSky.append(s)
+			
+		print "Trimmed out %d sources from original %d"%(len(self.HaSources) - len(self.trimmedSources),  len(self.HaSources))
+			
+			
+	def plotSourceHistogram(self):
+		topSourceArray = [ s['mean'] for s in self.HaSources ]
+		topSourceArray = sorted(topSourceArray, reverse = True)
+		skyArray = [s['mean'] for s in self.skySources ]
+		skyArray = sorted(skyArray)
+		sourceMedian = numpy.median(topSourceArray)
+		sourceMean = numpy.mean(topSourceArray[3:])
+			
+		skyMedian = numpy.median(skyArray)
+		skyMean = numpy.mean(skyArray[3:])
+		chart = matplotlib.pyplot.figure("Mean values", figsize=(10, 8))
+		axes = matplotlib.pyplot.gca()
+		matplotlib.pyplot.clf()
+		axes.set_xlabel("Superpixel rank")
+		axes.set_ylabel("Mean counts")
+		chart.add_axes(axes)
+		matplotlib.pyplot.scatter(range(0, len(topSourceArray)), topSourceArray, color='r')
+		trimmedSources = [t['mean'] for t in self.trimmedSources]
+		trimmedSky = [t['mean'] for t in self.trimmedSky]
+		matplotlib.pyplot.scatter(range(0, len(trimmedSources)), trimmedSources, color='g')
+		matplotlib.pyplot.scatter(range(0, len(skyArray)), skyArray, color='b')
+		matplotlib.pyplot.scatter(range(0, len(trimmedSky)), trimmedSky, color='y')
+		matplotlib.pyplot.plot([0, len(topSourceArray)], [sourceMedian, sourceMedian], color='r', ls='dashed')
+		matplotlib.pyplot.plot([0, len(topSourceArray)], [sourceMean, sourceMean], color='r', ls='dotted')
+		matplotlib.pyplot.plot([0, len(skyArray)], [skyMedian, skyMedian], color='b', ls='dashed')
+		matplotlib.pyplot.plot([0, len(skyArray)], [skyMean, skyMean], color='b', ls='dotted')
+		matplotlib.pyplot.draw()
+		matplotlib.pyplot.pause(2)
+		
 		
 class FITSdata:
 	def __init__(self):
 		self.sources = []
 		
 	def appendFromFile(self, filename):
-		hdulist = fits.open(filename)
-		header = hdulist[0].header
-		# print(repr(header))
-		tableData = hdulist[1].data
-		#print tableData
-		cols = hdulist[1].columns
-		added = 0
-		for d in tableData:
-			rowObject = {}
-			for c in cols.names:
-				rowObject[c] = d[c]
-			# print rowObject
-			added+= 1
-			self.sources.append(rowObject)
+		try:
+			hdulist = fits.open(filename)
+			header = hdulist[0].header
+			# print(repr(header))
+			tableData = hdulist[1].data
+			#print tableData
+			cols = hdulist[1].columns
+			added = 0
+			for d in tableData:
+				rowObject = {}
+				for c in cols.names:
+					rowObject[c] = d[c]
+				# print rowObject
+				added+= 1
+				self.sources.append(rowObject)
+		except IOError as e:
+			print "Could not load: %s"%filename
+			return (-1, -1)
 		return (added, len(self.sources))
 		
+	def appendRows(self, rows):
+		for r in rows:
+			self.sources.append(r)
+		return len(self.sources)
+		
+		
 	def sort(self):
-		self.sources = sorted(self.sources, key=lambda object: object['mean'], reverse = True)
+		self.sources = sorted(self.sources, key=lambda object: object['mean'], reverse = True)	
 		
 	def writeToFile(self, filename):
 		objects = self.sources
@@ -147,7 +210,7 @@ class FITSdata:
 if __name__ == '__main__':
 	
 	parser = argparse.ArgumentParser(description='Merge the output files produced by Hagrid into one big FITS file.')
-	parser.add_argument('output', type=str, help = "The output filename. It will be a FITS file.")
+	parser.add_argument('output', type=str, help = "The output filename handle. Full filename will by {output}_sources.fits and {output}_sky.fits.")
 	parser.add_argument('-p', '--path', type=str, help='The folder in which the IPHAS images are contained.')
 	parser.add_argument('-w', '--workingpath', type=str, help='A root folder for the temporary and output files.')
 	# parser.add_argument('-s', '--sky', action='store_true', help='Look for sky pointings rather than bright sources.')
@@ -191,19 +254,39 @@ if __name__ == '__main__':
 	print "Sky:", allSky
 	allSky.sort()
 	
-	sources = sourcesClass()
-	HaFilename = allSources.objectList[0]['filename']
-	skyFilename = HaFilename.replace('sources', 'sky')
-	print HaFilename, skyFilename
-	print "Added Ha sources:", sources.addSourcesFromFITS(HaFilename)
-	print "Added sky sources:", sources.addSourcesFromFITS(skyFilename, sky=True)
-	# sources.printSources()
 	
+	sourcesOutputObject = FITSdata()
+	skyOutputObject = FITSdata()
 	
+	for sourceObject in allSources.objectList:
+		sources = sourcesClass()
+	
+		HaFilename = sourceObject['filename']
+		skyFilename = HaFilename.replace('sources', 'sky')
+		print HaFilename, skyFilename
+		new, total = sources.addSourcesFromFITS(HaFilename)
+		print "Loaded %d Ha sources"%new
+		new, total = sources.addSourcesFromFITS(skyFilename, sky=True)
+		print "Loaded %d sky sources:"%new
+		sources.trimSources()
+		#sources.plotSourceHistogram()
+	
+		print "Total sources now %d"%(sourcesOutputObject.appendRows(sources.trimmedSources))
+		print "Total sky now %d"%(skyOutputObject.appendRows(sources.trimmedSky))
+	
+	sourcesOutputObject.sort()
+	skyOutputObject.sort()
+	
+	sourcesFilename = arg.output + "_sources.fits"
+	skyFilename = arg.output + "_sky.fits"
+	
+	sourcesOutputObject.writeToFile(sourcesFilename)
+	skyOutputObject.writeToFile(skyFilename)
 	
 	sys.exit()
 	
-	dataObject = FITSdata()
+	
+
 
 	for index, f in enumerate(allObjects.objectList):
 		numAdded, total = dataObject.appendFromFile(f['filename'])
