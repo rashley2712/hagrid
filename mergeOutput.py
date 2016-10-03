@@ -61,6 +61,39 @@ class FITScollection:
 	def __str__(self):
 		return "%d objects in the list."%len(self.objectList)
 	
+	
+class sourcesClass:
+	def __init__(self):
+		self.HaSources = []
+		self.skySources = []
+		
+	def addSourcesFromFITS(self, filename, sky=False):
+		hdulist = fits.open(filename)
+		header = hdulist[0].header
+		# print(repr(header))
+		tableData = hdulist[1].data
+		#print tableData
+		cols = hdulist[1].columns
+		added = 0
+		for d in tableData:
+			rowObject = {}
+			for c in cols.names:
+				rowObject[c] = d[c]
+			# print rowObject
+			added+= 1
+			if not sky:
+				self.HaSources.append(rowObject)
+				totalRows = len(self.HaSources)
+			else:
+				self.skySources.append(rowObject)
+				totalRows = len(self.skySources)
+		return (added, totalRows)
+		  
+	def printSources(self):
+		for h in self.HaSources:
+			print h
+			
+		
 class FITSdata:
 	def __init__(self):
 		self.sources = []
@@ -157,6 +190,14 @@ if __name__ == '__main__':
 	allSources.sort()
 	print "Sky:", allSky
 	allSky.sort()
+	
+	sources = sourcesClass()
+	HaFilename = allSources.objectList[0]['filename']
+	skyFilename = HaFilename.replace('sources', 'sky')
+	print HaFilename, skyFilename
+	print "Added Ha sources:", sources.addSourcesFromFITS(HaFilename)
+	print "Added sky sources:", sources.addSourcesFromFITS(skyFilename, sky=True)
+	# sources.printSources()
 	
 	
 	
