@@ -467,8 +467,8 @@ class IPHASdataClass:
 		if self.CCD == "CCD3":
 			# Add a clipped area to the vignetted part of CCD3
 			vignetteMask = numpy.zeros(numpy.shape(self.originalImageData))
-			for x in range(280):
-				ylim = int(x*(-1.214) + 340)
+			for x in range(480):
+				ylim = int(x*(-1.125) + 540)
 				for y in range(ylim):
 					vignetteMask[y,x] = 132
 			cornerMask = vignetteMask == 132

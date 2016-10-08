@@ -20,11 +20,26 @@ def downloadFITS(url, outputFilename):
 	import subprocess
 	wgetCommand = ["wget"]
 	wgetCommand.append(url)
-	wgetCommand.append('-O')
+	wgetCommand.append('-o')
 	wgetCommand.append(outputFilename)
 					
-	subprocess.call(wgetCommand)
+	try: 
+		subprocess.call(wgetCommand)
+		return
+	except OSError:
+		print "'wget' is not available. Trying 'curl'"
 	
+	curlCommand = ["curl"] 
+	curlCommand.append('-o')
+	curlCommand.append(outputFilename)
+	curlCommand.append(url)
+	try: 
+		subprocess.call(curlCommand)
+		return
+	except OSError:
+		print "'curl' is not available either. Giving up."
+	
+	return -1	
 	
 def gridCircle(x0, y0, radius, grid):
 	""" Draws a circle into a grid (array) with x, y as centre and radius.
