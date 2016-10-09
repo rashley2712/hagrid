@@ -124,6 +124,8 @@ catalogMetadata = {
 	}
 }
 
+
+
 class IPHASdataClass:
 	def __init__(self):
 		print "Initialising an empty IPHAS data class"
@@ -150,8 +152,10 @@ class IPHASdataClass:
 		self.objectStore = {}
 		self.activeColour = 'r'
 		self.CCD = "unknown"
-		self.seeing = 0
+		self.CCDseeing = 0
 		return None
+		
+	
 		
 	def setProperty(self, property, value):
 		truths = ["true", "yes", "on", "1", "Y", "y", "True"]
@@ -177,6 +181,22 @@ class IPHASdataClass:
 		if property=='colour' or property=='color':
 			self.__dict__['activeColour'] = str(value)
 
+
+	def maskRadius(self, object, catalogName):
+		r = 0
+		if catalogName=='dr2':
+			r = object['pixelFWHM'] * 3. * self.CCDseeing 
+		else:
+			if object['mag']>12:
+				r = 40*math.exp((-object['mag']+12)/4)
+			elif object['mag']<8:
+				r = 250
+				if object['mag']<7:
+					r = 350
+			else: 
+				r = 50
+						
+		return r
 			
 	def getStoredObject(self, name):
 		try:
@@ -221,7 +241,7 @@ class IPHASdataClass:
 			print e
 		
 		try:
-			self.seeing = self.FITSHeaders['SEEING']
+			self.CCDseeing = self.FITSHeaders['SEEING']
 		except Exception as e:
 			print "WARNING: Could not find the 'seeing' value for this image in the FITS headers."
 			
@@ -393,14 +413,7 @@ class IPHASdataClass:
 					if o['class'] != -1: continue   # Skip objects that are not stars  
 				xArray.append(o['x'] - 1)
 				yArray.append(self.height - 1 - o['y'] )
-				if catalogName=='dr2':
-					r = o['pixelFWHM']*8.
-				else:
-					if o['mag']>12:
-						r = 40*math.exp((-o['mag']+12)/4)
-					else: 
-						r = 40
-				rArray.append(r)
+				rArray.append(self.maskRadius(o, catalogName))
 	
 			# Nick Wright 
 			# R / pixels = 8192/M^2 + 1000/M + 100 
@@ -508,19 +521,9 @@ class IPHASdataClass:
 		yArray = []
 		rArray = []
 		for o in catalog:
-			# Check that the catalog has a class flag
-			if 'class' in o.keys():
-				if o['class'] != -1: continue   # Skip objects that are not stars  
 			xArray.append(o['x'])
 			yArray.append(o['y'])
-			if catalogName=='dr2':
-				r = o['pixelFWHM']*9.
-			else:
-				if o['mag']>12:
-					r = 40*math.exp((-o['mag']+12)/4)
-				else: 
-					r = 50
-			rArray.append(r)
+			rArray.append(self.maskRadius(o, catalogName))
 			
 		index = 1	
 		for x, y, r in zip(xArray, yArray, rArray):
