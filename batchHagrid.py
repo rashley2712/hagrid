@@ -81,6 +81,7 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description='A simple Python tool to run hagrid in a batch mode over a folder full of files.')
 	parser.add_argument('-p', '--path', type=str, help='The folder in which the IPHAS images are contained.')
 	parser.add_argument('-w', '--workingpath', type=str, help='A root folder for the temporary and output files.')
+	parser.add_argument('-s', '--script', type=str, help='The script to use. By default is will look in the local directory for a file called ''script.template''.')
 	arg = parser.parse_args()
 	print arg
 
@@ -92,6 +93,11 @@ if __name__ == '__main__':
 		workingPath="."
 	else: 
 		workingPath= arg.workingpath
+		
+	if arg.script is None:
+		scriptFile = "script.template"
+	else:
+		scriptFile = arg.script
 		
 	
 	# Get a list of files in the folder
@@ -139,7 +145,7 @@ if __name__ == '__main__':
 		print "Processing", filename
 	
 		# Load the setup template
-		setupFile = open(workingPath + "/script.template", 'rt')
+		setupFile = open(scriptFile, 'rt')
 		templateString = setupFile.read()
 		setupFile.close()
 		# Fill the template

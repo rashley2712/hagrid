@@ -185,7 +185,7 @@ class IPHASdataClass:
 	def maskRadius(self, object, catalogName):
 		r = 0
 		if catalogName=='dr2':
-			r = object['pixelFWHM'] * 3. * self.CCDseeing 
+			r = object['pixelFWHM'] * 2.8 * self.CCDseeing 
 		else:
 			if object['mag']>12:
 				r = 40*math.exp((-object['mag']+12)/4)
@@ -480,8 +480,8 @@ class IPHASdataClass:
 		if self.CCD == "CCD3":
 			# Add a clipped area to the vignetted part of CCD3
 			vignetteMask = numpy.zeros(numpy.shape(self.originalImageData))
-			for x in range(480):
-				ylim = int(x*(-1.125) + 540)
+			for x in range(530):
+				ylim = int(x*(-1.207) + 640)
 				for y in range(ylim):
 					vignetteMask[y,x] = 132
 			cornerMask = vignetteMask == 132
