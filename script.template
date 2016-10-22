@@ -8,7 +8,6 @@ get cat usno
 plot cat dr2
 plot cat usno
 mask usno
-dump image {workingpath}/{root}_catalog.png
 mask dr2
 mask border
 mask badpixels
