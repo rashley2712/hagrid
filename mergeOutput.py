@@ -144,7 +144,7 @@ class sourcesClass:
 		matplotlib.pyplot.plot([0, len(skyArray)], [skyMedian, skyMedian], color='b', ls='dashed')
 		matplotlib.pyplot.plot([0, len(skyArray)], [skyMean, skyMean], color='b', ls='dotted')
 		matplotlib.pyplot.draw()
-		matplotlib.pyplot.pause(2)
+		matplotlib.pyplot.pause(10)
 		
 		
 class FITSdata:
@@ -269,7 +269,7 @@ if __name__ == '__main__':
 		new, total = sources.addSourcesFromFITS(skyFilename, sky=True)
 		print "Loaded %d sky sources:"%new
 		sources.trimSources()
-		#sources.plotSourceHistogram()
+		# sources.plotSourceHistogram()
 	
 		print "Total sources now %d"%(sourcesOutputObject.appendRows(sources.trimmedSources))
 		print "Total sky now %d"%(skyOutputObject.appendRows(sources.trimmedSky))
