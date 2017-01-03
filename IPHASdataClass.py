@@ -274,33 +274,41 @@ class IPHASdataClass:
 		cached = False
 		if not self.ignorecache:
 			print "Looking for a cached copy of the catalogue:", catalogCache, 
+			onlineCacheFolder = os.getenv("HOME") + "/Google Drive/astronomy/IPHAS/catalog_cache/"
+			onlineCacheFile = onlineCacheFolder + filenameParts[0][0:4] + "/" + catalogCache
+			print onlineCacheFile
 			if os.path.exists(catalogCache):
 				print "FOUND"
+				newCatalog = Table.read(catalogCache)
 				cached = True
-			else: print "NOT FOUND"
-	
-		if cached:
-			newCatalog = Table.read(catalogCache)
-		else:			
-			print "Going online to fetch %s results from Vizier with mag limit %f."%(catalogName, self.magLimit)
-			from astroquery.vizier import Vizier
-			Vizier.ROW_LIMIT = 1E5
-			Vizier.column_filters={"r":"<%d"%self.magLimit}
-			from astropy import coordinates
-			from astropy import units as u
-			c = coordinates.SkyCoord(ra,dec,unit=('deg','deg'),frame='icrs')
-			skyRA  = coordinates.Angle(self.raRange, unit = u.deg)
-			skyDEC = coordinates.Angle(self.decRange, unit = u.deg)
-			print "Sky RA, DEC range:", skyRA, skyDEC
-			print "going to Astroquery for:", catalogMetadata[catalogName]['VizierLookup']
-			result = Vizier.query_region(coordinates = c, width = skyRA, height = skyDEC, catalog = catalogMetadata[catalogName]['VizierName'], verbose=True)
-			print result
-			newCatalog = result[catalogMetadata[catalogName]['VizierName']]
-			newCatalog.pprint()
+			elif os.path.exists(onlineCacheFile):
+				print "\n...Also looking in the online folder for %s"%onlineCacheFile
+				print "FOUND"
+				newCatalog = Table.read(onlineCacheFile)
+				cached = True
+			
+			if not cached: 
+				print "NOT FOUND"
+				print "Going online to fetch %s results from Vizier with mag limit %f."%(catalogName, self.magLimit)
+				from astroquery.vizier import Vizier
+				Vizier.ROW_LIMIT = 1E5
+				Vizier.column_filters={"r":"<%d"%self.magLimit}
+				from astropy import coordinates
+				from astropy import units as u
+				c = coordinates.SkyCoord(ra,dec,unit=('deg','deg'),frame='icrs')
+				skyRA  = coordinates.Angle(self.raRange, unit = u.deg)
+				skyDEC = coordinates.Angle(self.decRange, unit = u.deg)
+				print "Sky RA, DEC range:", skyRA, skyDEC
+				print "going to Astroquery for:", catalogMetadata[catalogName]['VizierLookup']
+				result = Vizier.query_region(coordinates = c, width = skyRA, height = skyDEC, catalog = catalogMetadata[catalogName]['VizierName'], verbose=True)
+				print result
+				newCatalog = result[catalogMetadata[catalogName]['VizierName']]
+				newCatalog.pprint()
 			
 			
-			# Write the new catalog to the cache file
-			newCatalog.write(catalogCache, format='fits', overwrite=True)
+				# Write the new catalog to the cache file
+				# newCatalog.write(catalogCache, format='fits', overwrite=True)
+				newCatalog.write(onlineCacheFile)
 		
 		self.addCatalog(newCatalog, catalogName)
 		
@@ -367,6 +375,7 @@ class IPHASdataClass:
 		skyDiagonal = distance(pixel1, pixel2)
 		print "Diagonal size:", pixelDiagonal, skyDiagonal
 		self.pixelScale = (skyDiagonal / pixelDiagonal) * 3600.
+		self.pixelScale = 0.333
 		raMin = numpy.min([r[0] for r in boundingBox])
 		raMax = numpy.max([r[0] for r in boundingBox])
 		decMin = numpy.min([r[1] for r in boundingBox])
