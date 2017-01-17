@@ -44,8 +44,10 @@ def downloadFITS(url, outputFilename):
 def gridCircle(x0, y0, radius, grid):
 	""" Draws a circle into a grid (array) with x, y as centre and radius.
 	"""
-	x = radius
-	y = 0
+	x0 = int(x0)
+	y0 = int(y0)
+	x = int(radius)
+	y = int(0)
 	decisionOver2 = 1 - x   
 
 	while( y <= x ):

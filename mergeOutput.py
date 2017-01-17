@@ -203,7 +203,7 @@ class FITSdata:
 			
 		prihdu = fits.PrimaryHDU(header=prihdr)
 		thdulist = fits.HDUList([prihdu, tbhdu])
-		thdulist.writeto(filename, clobber=True)
+		thdulist.writeto(filename, overwrite=True)
 	
 
 

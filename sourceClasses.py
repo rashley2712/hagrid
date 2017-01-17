@@ -1,6 +1,7 @@
 from astropy.io import fits
 from astropy.coordinates import SkyCoord
 from astropy import units as u
+import datetime
 
 class sourcesClass:
 	def __init__(self):
@@ -53,7 +54,7 @@ class sourcesClass:
 		sampleObject = self.sources[0]
 		if column not in sampleObject.keys():
 			print "Sort: Could not find the column called %s"%column
-		self.sources = sorted(self.sources, key=lambda object: object[column], reverse = False)
+		self.sources = sorted(self.sources, key=lambda object: object[column], reverse = True)
 		
 						
 	def plotSourceHistogram(self):
@@ -85,3 +86,28 @@ class sourcesClass:
 		matplotlib.pyplot.draw()
 		matplotlib.pyplot.pause(10)
 		
+	def writeToFile(self, filename):
+		objects = self.sources
+		hdu = fits.PrimaryHDU()
+		cols = []
+		cols.append(fits.Column(name='id', format='16A', array = [o['id'] for o in objects]))
+		cols.append(fits.Column(name='ra', format='E', array = [o['ra'] for o in objects]))
+		cols.append(fits.Column(name='dec', format = 'E', array = [o['dec'] for o in objects]))
+		cols.append(fits.Column(name='xmax', format = 'E', array = [o['xmax'] for o in objects]))
+		cols.append(fits.Column(name='ymax', format = 'E', array = [o['ymax'] for o in objects]))
+		cols.append(fits.Column(name='mean', format = 'E', array = [o['mean'] for o in objects]))
+		cols.append(fits.Column(name='peak', format = 'E', array = [o['peak'] for o in objects]))
+		cols.append(fits.Column(name='variance', format = 'E', array = [o['variance'] for o in objects]))
+		cols.append(fits.Column(name='type', format = '8A', array = [o['type'] for o in objects]))
+		cols.append(fits.Column(name='CCD', format = '4A', array = [o['CCD'] for o in objects]))
+		cols = fits.ColDefs(cols)
+		tbhdu = fits.BinTableHDU.from_columns(cols)
+			
+		prihdr = fits.Header()
+		prihdr['COMMENT'] = "Created by Hagrid (postProcess.py) on %s."%( datetime.datetime.ctime(datetime.datetime.now()))
+			
+		prihdu = fits.PrimaryHDU(header=prihdr)
+		thdulist = fits.HDUList([prihdu, tbhdu])
+		thdulist.writeto(filename, overwrite=True)
+		
+	
