@@ -24,6 +24,7 @@ if __name__ == '__main__':
 	parser.add_argument('-o', '--output', type=str, help='Output filename (.fits) is automatically added. Default is "out.fits".')
 	parser.add_argument('-p', '--parameter', type=str, help='Which column to use a ranking parameter. Sensible options are "peak" or "mean". Default is "mean".')
 
+	parser.add_argument('-dr', '--debugrow', type=int, help='Debug the contributors to a certain source matching debugrow.')
 
 	arg = parser.parse_args()
 	
@@ -34,6 +35,14 @@ if __name__ == '__main__':
 		limit = True
 		limitNumber = arg.limit
 		print "Warning: Limiting number of sources processed to %d."%limitNumber
+	
+	if arg.debugrow is None:
+		debug = False
+		debugRow = 0
+	else:
+		debug = True
+		debugRow = arg.debugRow
+		print "Warning: Will debug source number %d."%debugRow
 	
 	if arg.output is None:
 		outputFilename = "out.fits"
@@ -63,14 +72,14 @@ if __name__ == '__main__':
 	# sources.addSkyCoords()
 	
 	metaSources = []
-	gaussianRadius = 1  			# Gaussian radius in arcmin
+	gaussianRadius = 0.2  			# Gaussian radius in arcmin
 	ras = [s['ra'] for s in sources.sources]
 	decs = [s['dec'] for s in sources.sources]
 	# allSources = [s['coord'] for s in sources.sources]
 	allSources = SkyCoord(ras*u.degree, decs*u.degree)
 	
 	for sourceNumber, chosenSource in enumerate(sources.sources):
-		print sourceNumber, "Original %s: %d"%(rankColumn, chosenSource[rankColumn]), 
+		print sourceNumber, "Original %s: %f"%(rankColumn, chosenSource[rankColumn]), 
 		sourceCoords = SkyCoord(ra = chosenSource['ra']* u.degree, dec = chosenSource['dec']*u.degree)
 		separationFromChosenSource = sourceCoords.separation(allSources)
 		matchArray = []
@@ -81,10 +90,11 @@ if __name__ == '__main__':
 		for index in range(1, len(sortedMatches)):
 			s = sortedMatches[index]
 			contribution =  gaussian(s['separation'], gaussianRadius) * sources.sources[s['n']][rankColumn]
-			# print index, s['separation'], s['n'], sources.sources[s['n']][rankColumn], gaussian(s['separation'], gaussianRadius), contribution
+			if debug and sourceNumber==debugRow:
+				 print index, s['separation'], s['n'], sources.sources[s['n']][rankColumn], gaussian(s['separation'], gaussianRadius), contribution
 			if s['separation'] > 5*gaussianRadius: break
 			chosenSource[rankColumn]+= contribution
-		print "Final %s: %d"%(rankColumn, chosenSource[rankColumn])
+		print "Final %s: %f"%(rankColumn, chosenSource[rankColumn])
 		if limit and sourceNumber>=limitNumber-1: break
 	
 	sources.sortSources(rankColumn)
