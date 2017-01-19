@@ -23,7 +23,7 @@ if __name__ == '__main__':
 	parser.add_argument('--limit', type=int, help='Limit the number of sources to process. For debugging purposes only.')
 	parser.add_argument('-o', '--output', type=str, help='Output filename (.fits) is automatically added. Default is "out.fits".')
 	parser.add_argument('-p', '--parameter', type=str, help='Which column to use a ranking parameter. Sensible options are "peak" or "mean". Default is "mean".')
-
+	parser.add_argument('-g', '--gaussian', type=float, help='Gaussian contribution radius. Default is 0.5 arcmin.')
 	parser.add_argument('-dr', '--debugrow', type=int, help='Debug the contributors to a certain source matching debugrow.')
 
 	arg = parser.parse_args()
@@ -54,6 +54,11 @@ if __name__ == '__main__':
 	else:
 		rankColumn = arg.parameter
 	
+	if arg.gaussian is None:
+		gaussianRadius = 0.5  			# Gaussian radius in arcmin
+	else:
+		gaussianRadius = arg.gaussian
+	
 	# First, check if the source data is there
 	if not os.path.exists(arg.catalogue):
 		print "File for source data %s could not be found. Exiting."%arg.catalogue
@@ -72,7 +77,6 @@ if __name__ == '__main__':
 	# sources.addSkyCoords()
 	
 	metaSources = []
-	gaussianRadius = 0.2  			# Gaussian radius in arcmin
 	ras = [s['ra'] for s in sources.sources]
 	decs = [s['dec'] for s in sources.sources]
 	# allSources = [s['coord'] for s in sources.sources]
@@ -135,16 +139,15 @@ if __name__ == '__main__':
 	outputSources.sources = finalSources
 	outputSources.writeToFile(outputFilename)
 	
-	""" # For sanity sake, plot the Gaussian
-	gaussianPlot = matplotlib.pyplot.figure("Gaussian function", figsize=(10, 10))
+	# For sanity sake, plot the Gaussian
+	"""gaussianPlot = matplotlib.pyplot.figure("Gaussian function", figsize=(6, 4))
 	gaussianPlot.set_tight_layout(True)
-	xValues = numpy.arange(-3, 3, 0.1)
+	xValues = numpy.arange(-3, 3, 0.01)
 	yValues = gaussian(xValues, gaussianRadius)
 	matplotlib.pyplot.plot( xValues, yValues, color = 'r')
 	matplotlib.pyplot.draw()
 	matplotlib.pyplot.show()
-	"""		 
-		
+	"""	
 	
 	sys.exit()
 	
