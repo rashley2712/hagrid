@@ -25,6 +25,8 @@ if __name__ == '__main__':
 	parser.add_argument('-p', '--parameter', type=str, help='Which column to use a ranking parameter. Sensible options are "peak" or "mean". Default is "mean".')
 	parser.add_argument('-g', '--gaussian', type=float, help='Gaussian contribution radius. Default is 0.5 arcmin.')
 	parser.add_argument('-dr', '--debugrow', type=int, help='Debug the contributors to a certain source matching debugrow.')
+	parser.add_argument('-s', '--separation', type=float, default = 2.0, help='Minimum separation limit of final output catalogue. Default 2 arcmin.')
+	
 
 	arg = parser.parse_args()
 	
@@ -41,7 +43,7 @@ if __name__ == '__main__':
 		debugRow = 0
 	else:
 		debug = True
-		debugRow = arg.debugRow
+		debugRow = arg.debugrow
 		print "Warning: Will debug source number %d."%debugRow
 	
 	if arg.output is None:
@@ -58,6 +60,13 @@ if __name__ == '__main__':
 		gaussianRadius = 0.5  			# Gaussian radius in arcmin
 	else:
 		gaussianRadius = arg.gaussian
+
+	if arg.gaussian is None:
+		gaussianRadius = 0.5  			# Gaussian radius in arcmin
+	else:
+		gaussianRadius = arg.gaussian
+
+	minimumSeparation = arg.separation
 	
 	# First, check if the source data is there
 	if not os.path.exists(arg.catalogue):
@@ -74,6 +83,7 @@ if __name__ == '__main__':
 	print "Columns are: %s"%sources.getColumnNames()
 	
 	sources.sortSources(rankColumn)
+	sources.addTempColumn(rankColumn)
 	# sources.addSkyCoords()
 	
 	metaSources = []
@@ -93,9 +103,9 @@ if __name__ == '__main__':
 		sortedMatches = sorted(matchArray, key=lambda object: object['separation'], reverse = False)
 		for index in range(1, len(sortedMatches)):
 			s = sortedMatches[index]
-			contribution =  gaussian(s['separation'], gaussianRadius) * sources.sources[s['n']][rankColumn]
+			contribution =  gaussian(s['separation'], gaussianRadius) * sources.sources[s['n']]['temp']
 			if debug and sourceNumber==debugRow:
-				 print index, s['separation'], s['n'], sources.sources[s['n']][rankColumn], gaussian(s['separation'], gaussianRadius), contribution
+				 print "\n%s [%d] {%d} sep: %f  %s: %f gauss: %f, contribution: %f"%(chosenSource['id'], index, s['n'], s['separation'], rankColumn, sources.sources[s['n']]['temp'], gaussian(s['separation'], gaussianRadius), contribution)
 			if s['separation'] > 5*gaussianRadius: break
 			chosenSource[rankColumn]+= contribution
 		print "Final %s: %f"%(rankColumn, chosenSource[rankColumn])
@@ -103,7 +113,6 @@ if __name__ == '__main__':
 	
 	sources.sortSources(rankColumn)
 	
-	minimumSeparation = 1.0
 	firstSource = sources.sources[0]	
 	finalSources = [firstSource]
 	

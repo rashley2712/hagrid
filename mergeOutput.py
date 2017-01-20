@@ -82,6 +82,7 @@ class sourcesClass:
 				for c in cols.names:
 					rowObject[c] = d[c]
 				added+= 1
+				# rowObject['sky_mean'] = -1
 				if not sky:
 					self.HaSources.append(rowObject)
 					totalRows = len(self.HaSources)
@@ -102,20 +103,23 @@ class sourcesClass:
 			
 	def trimSources(self):
 		sourceArray = [ s['mean'] for s in self.HaSources ]
-		skyArray = [s['mean'] for s in self.skySources ]
+		skyArray = [ s['mean'] for s in self.skySources ]
+		skyMean = numpy.mean(skyArray[3:])
 		
 		sourceMean = numpy.mean(sourceArray[3:])
 		self.trimmedSources = []
 		for s in self.HaSources: 
-			if s['mean'] > sourceMean: self.trimmedSources.append(s)
+			if s['mean'] > sourceMean: 
+				s['sky_mean'] = skyMean
+				self.trimmedSources.append(s)
 		
-		skyMean = numpy.mean(skyArray[3:])
 		self.trimmedSky = []
 		for s in self.skySources: 
-			if s['mean'] > skyMean: self.trimmedSky.append(s)
+			if s['mean'] > skyMean: 
+				s['sky_mean'] = skyMean
+				self.trimmedSky.append(s)
 			
 		print "Trimmed out %d sources from original %d"%(len(self.HaSources) - len(self.trimmedSources),  len(self.HaSources))
-			
 			
 	def plotSourceHistogram(self):
 		topSourceArray = [ s['mean'] for s in self.HaSources ]
@@ -195,6 +199,7 @@ class FITSdata:
 		cols.append(fits.Column(name='variance', format = 'E', array = [o['variance'] for o in objects]))
 		cols.append(fits.Column(name='type', format = '8A', array = [o['type'] for o in objects]))
 		cols.append(fits.Column(name='CCD', format = '4A', array = [o['CCD'] for o in objects]))
+		cols.append(fits.Column(name='sky_mean', format = 'E', array = [o['sky_mean'] for o in objects]))
 		cols = fits.ColDefs(cols)
 		tbhdu = fits.BinTableHDU.from_columns(cols)
 			
@@ -269,6 +274,7 @@ if __name__ == '__main__':
 		new, total = sources.addSourcesFromFITS(skyFilename, sky=True)
 		print "Loaded %d sky sources:"%new
 		sources.trimSources()
+		
 		# sources.plotSourceHistogram()
 	
 		print "Total sources now %d"%(sourcesOutputObject.appendRows(sources.trimmedSources))

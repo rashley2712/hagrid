@@ -49,6 +49,13 @@ class sourcesClass:
 		for k in self.sources[0].keys():
 			retStr+=str(k) + ", "
 		return retStr[:-2]
+		
+	def addTempColumn(self, columnName):
+		""" Adds a duplicate column to the source list
+		"""
+		for s in self.sources:
+			s['temp'] = s[columnName]
+			
 			
 	def sortSources(self, column):
 		sampleObject = self.sources[0]
@@ -100,6 +107,7 @@ class sourcesClass:
 		cols.append(fits.Column(name='variance', format = 'E', array = [o['variance'] for o in objects]))
 		cols.append(fits.Column(name='type', format = '8A', array = [o['type'] for o in objects]))
 		cols.append(fits.Column(name='CCD', format = '4A', array = [o['CCD'] for o in objects]))
+		cols.append(fits.Column(name='sky_mean', format = 'E', array = [o['sky_mean'] for o in objects]))
 		cols = fits.ColDefs(cols)
 		tbhdu = fits.BinTableHDU.from_columns(cols)
 			
