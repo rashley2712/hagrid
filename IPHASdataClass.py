@@ -276,6 +276,7 @@ class IPHASdataClass:
 			print "Looking for a cached copy of the catalogue:", catalogCache, 
 			onlineCacheFolder = os.getenv("HOME") + "/Google Drive/astronomy/IPHAS/catalog_cache/"
 			onlineCacheFile = onlineCacheFolder + filenameParts[0][0:4] + "/" + catalogCache
+			onlineCacheSubFolder = onlineCacheFolder + filenameParts[0][0:4]
 			print onlineCacheFile
 			if os.path.exists(catalogCache):
 				print "FOUND"
@@ -308,6 +309,9 @@ class IPHASdataClass:
 			
 				# Write the new catalog to the cache file
 				# newCatalog.write(catalogCache, format='fits', overwrite=True)
+				# We might need to create the folder 
+				if not os.path.exists(onlineCacheSubFolder):
+					 os.mkdir(onlineCacheSubFolder)    
 				newCatalog.write(onlineCacheFile)
 		
 		self.addCatalog(newCatalog, catalogName)
