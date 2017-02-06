@@ -124,6 +124,23 @@ catalogMetadata = {
 	}
 }
 
+def maskRadius(object, catalogName, CCDseeing):
+	r = 0
+	if catalogName=='dr2':
+		r = object['pixelFWHM'] * 2.8 * CCDseeing
+		r = 2.8 * CCDseeing 
+	else:
+		if object['mag']>12:
+			r = 40*math.exp((-object['mag']+12)/4)
+		elif object['mag']<8:
+			r = 250
+			if object['mag']<7:
+				r = 350
+		else: 
+			r = 50
+						
+	return r
+	
 
 
 class IPHASdataClass:
@@ -182,21 +199,6 @@ class IPHASdataClass:
 			self.__dict__['activeColour'] = str(value)
 
 
-	def maskRadius(self, object, catalogName):
-		r = 0
-		if catalogName=='dr2':
-			r = object['pixelFWHM'] * 2.8 * self.CCDseeing 
-		else:
-			if object['mag']>12:
-				r = 40*math.exp((-object['mag']+12)/4)
-			elif object['mag']<8:
-				r = 250
-				if object['mag']<7:
-					r = 350
-			else: 
-				r = 50
-						
-		return r
 			
 	def getStoredObject(self, name):
 		try:
@@ -536,13 +538,14 @@ class IPHASdataClass:
 		for o in catalog:
 			xArray.append(o['x'])
 			yArray.append(o['y'])
-			rArray.append(self.maskRadius(o, catalogName))
+			rArray.append(maskRadius(o, catalogName, self.CCDseeing))
 			
 		index = 1	
 		for x, y, r in zip(xArray, yArray, rArray):
-			self.mask = generalUtils.gridCircle(y, x, r, self.mask)
 			sys.stdout.write("\rMasking: %d of %d."%(index, len(catalog)))
+			sys.stdout.write(" %f %f %f "%(x, y, r))
 			sys.stdout.flush()
+			self.mask = generalUtils.gridCircle(y, x, r, self.mask)
 			index+= 1
 		sys.stdout.write("\n")
 		sys.stdout.flush()
