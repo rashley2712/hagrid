@@ -127,8 +127,10 @@ catalogMetadata = {
 def maskRadius(object, catalogName, CCDseeing):
 	r = 0
 	if catalogName=='dr2':
-		r = object['pixelFWHM'] * 2.8 * CCDseeing
-		r = 2.8 * CCDseeing 
+		if CCDseeing!=0:
+		    r = object['pixelFWHM'] * 2.8 * CCDseeing
+		else:
+		    r = 4.0 * object['pixelFWHM'] 
 	else:
 		if object['mag']>12:
 			r = 40*math.exp((-object['mag']+12)/4)
@@ -428,7 +430,7 @@ class IPHASdataClass:
 					if o['class'] != -1: continue   # Skip objects that are not stars  
 				xArray.append(o['x'] - 1)
 				yArray.append(self.height - 1 - o['y'] )
-				rArray.append(self.maskRadius(o, catalogName))
+				rArray.append(maskRadius(o, catalogName, self.CCDseeing))
 	
 			# Nick Wright 
 			# R / pixels = 8192/M^2 + 1000/M + 100 

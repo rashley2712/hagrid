@@ -44,7 +44,6 @@ def downloadFITS(url, outputFilename):
 def gridCircle(x0, y0, radius, grid):
 	""" Draws a circle into a grid (array) with x, y as centre and radius.
 	"""
-	print "gridCircle", x0, y0, radius
 	x0 = int(x0)
 	y0 = int(y0)
 	x = int(radius)
