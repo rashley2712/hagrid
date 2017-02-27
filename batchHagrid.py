@@ -160,7 +160,18 @@ if __name__ == '__main__':
 					
 		subprocess.call(hagridCommand)
 	
-		o['processed'] = True
+		# Before marking status as processed, check to see if the output files are there
+		rootName = filename.split(".")[0]
+		outputFileCheck = workingPath + "/" + rootName + ".sources.fits"
+		print "Checking for output at:", outputFileCheck
+		if os.path.exists(outputFileCheck):
+			o['processed'] = True
+		else: 
+			print "Hagrid failed. Please check for errors."
+			with open(workingPath + "/failed.log", "a") as errorLog:
+				errorLog.write(filename + "\n")
+				sys.stdin.read(1)
+			
 		allObjects.writeToCSV(workingPath + "/status.csv")	
 	
 		

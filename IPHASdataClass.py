@@ -340,13 +340,19 @@ class IPHASdataClass:
 	def addCatalog(self, catTable, catalogName):
 		newCatalog = []
 		columnMapper = catalogMetadata[catalogName]['columns']
+		
+		
+		
+		skippedRowCount = 0
 		for index, row in enumerate(catTable):
 			object={}
 			skipRow = False
 			for key in columnMapper.keys():
 				object[key] = row[columnMapper[key]]
-				if numpy.isnan(row[columnMapper[key]]): skipRow = True
-			if skipRow: continue		
+				if numpy.isnan(float(row[columnMapper[key]])): skipRow = True
+			if skipRow: 
+				skippedRowCount+= 1
+				continue		
 			x, y = self.wcsSolution.all_world2pix([object['ra']], [object['dec']], 1)
 			object['x'] = x[0]
 			object['y'] = y[0]
@@ -357,7 +363,8 @@ class IPHASdataClass:
 				sys.stdout.flush()
 		sys.stdout.write("\rCopying: %d of %d.\n"%(index+1, len(catTable)))
 		sys.stdout.flush()
-					
+		
+		print "Skipped %d rows because they contained some null data."%skippedRowCount		
 		trimmedCatalog = []
 		for row in newCatalog:
 			if row['x']<0: continue
@@ -893,7 +900,7 @@ class IPHASdataClass:
 			
 			prihdu = fits.PrimaryHDU(header=prihdr)
 			thdulist = fits.HDUList([prihdu, tbhdu])
-			thdulist.writeto(filename, clobber=True)
+			thdulist.writeto(filename, overwrite=True)
 			
 			
 			return
