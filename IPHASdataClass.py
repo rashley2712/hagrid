@@ -900,8 +900,10 @@ class IPHASdataClass:
 			
 			prihdu = fits.PrimaryHDU(header=prihdr)
 			thdulist = fits.HDUList([prihdu, tbhdu])
-			thdulist.writeto(filename, clobber=True)
-			
+			try:
+				thdulist.writeto(filename, overwrite=True)
+			except:
+				thdulist.writeto(filename, clobber=True)
 			
 			return
 		
