@@ -171,6 +171,7 @@ class IPHASdataClass:
 		self.objectStore = {}
 		self.activeColour = 'r'
 		self.CCD = "unknown"
+		self.cachedir = "/tmp/hagrid/"
 		self.CCDseeing = 0
 		return None
 		
@@ -199,7 +200,9 @@ class IPHASdataClass:
 				self.fullDebug = False
 		if property=='colour' or property=='color':
 			self.__dict__['activeColour'] = str(value)
-
+		if property=='cachedir':
+			self.__dict__['cachedir'] = str(value)
+			
 
 			
 	def getStoredObject(self, name):
@@ -277,19 +280,13 @@ class IPHASdataClass:
 		catalogCache = filenameParts[0] + "_" + catalogName + "_cache.fits"
 		cached = False
 		if not self.ignorecache:
-			print "Looking for a cached copy of the catalogue:", catalogCache, 
-			onlineCacheFolder = os.getenv("HOME") + "/Google Drive/astronomy/IPHAS/catalog_cache/"
-			onlineCacheFile = onlineCacheFolder + filenameParts[0][0:4] + "/" + catalogCache
-			onlineCacheSubFolder = onlineCacheFolder + filenameParts[0][0:4]
-			print onlineCacheFile
-			if os.path.exists(catalogCache):
+			localCacheFolder = self.cachedir
+			localCacheFile = os.path.join(localCacheFolder, filenameParts[0][0:4], catalogCache)
+			localCacheSubFolder = os.path.join(localCacheFolder, filenameParts[0][0:4])
+			print "Looking for a local cached copy of the catalogue:", localCacheFile, 
+			if os.path.exists(localCacheFile):
 				print "FOUND"
-				newCatalog = Table.read(catalogCache)
-				cached = True
-			elif os.path.exists(onlineCacheFile):
-				print "\n...Also looking in the online folder for %s"%onlineCacheFile
-				print "FOUND"
-				newCatalog = Table.read(onlineCacheFile)
+				newCatalog = Table.read(localCacheFile)
 				cached = True
 			
 			if not cached: 
@@ -314,9 +311,12 @@ class IPHASdataClass:
 				# Write the new catalog to the cache file
 				# newCatalog.write(catalogCache, format='fits', overwrite=True)
 				# We might need to create the folder 
-				if not os.path.exists(onlineCacheSubFolder):
-					 os.mkdir(onlineCacheSubFolder)    
-				newCatalog.write(onlineCacheFile)
+				print "Checking for existance of cache folder:", localCacheSubFolder
+				if not os.path.exists(self.cachedir):
+					os.mkdir(self.cachedir)
+				if not os.path.exists(localCacheSubFolder):
+					 os.mkdir(localCacheSubFolder)    
+				newCatalog.write(localCacheFile)
 		
 		self.addCatalog(newCatalog, catalogName)
 		
@@ -900,7 +900,7 @@ class IPHASdataClass:
 			
 			prihdu = fits.PrimaryHDU(header=prihdr)
 			thdulist = fits.HDUList([prihdu, tbhdu])
-			thdulist.writeto(filename, overwrite=True)
+			thdulist.writeto(filename, clobber=True)
 			
 			
 			return
