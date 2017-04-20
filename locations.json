@@ -1,0 +1,5 @@
+
+	{'name':	'cygnus_ha', 
+			'criteria': [ 	{'type' : 'coord',  'ra': 304.1963, 'dec': 37.1692, 'radius': 0.5} , 
+					   		{'type' : 'filter', 'band': 'halpha' } 
+	} 
