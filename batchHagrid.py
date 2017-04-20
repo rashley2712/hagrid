@@ -23,6 +23,8 @@ class FITScollection:
 			
 	def additem(self, filename):
 		fitsObject = {}
+		
+		fitsObject['baseFilename'] = os.path.basename(filename)
 		fitsObject['filename'] = filename
 		fitsObject['processed'] = False
 		self.objectList.append(fitsObject)
@@ -77,14 +79,18 @@ class FITScollection:
 	
 
 if __name__ == '__main__':
-	
-	parser = argparse.ArgumentParser(description='A simple Python tool to run hagrid in a batch mode over a folder full of files.')
+	parser = argparse.ArgumentParser(description='A simple Python tool to run hagrid in a batch mode over a folder full of files or a list of files.')
 	parser.add_argument('-p', '--path', type=str, help='The folder in which the IPHAS images are contained.')
+	parser.add_argument('-l', '--list', type=str, help='Pass in a list of filenames as a textfile (one filename per line).')
 	parser.add_argument('-w', '--workingpath', type=str, help='A root folder for the temporary and output files.')
 	parser.add_argument('-s', '--script', type=str, help='The script to use. By default is will look in the local directory for a file called ''script.template''.')
 	arg = parser.parse_args()
 	print arg
 
+	if arg.list is None:
+		operateFromList = False
+	else: operateFromList = True
+        
 	if arg.path is None:
 		dataPath="."
 	else: 
@@ -98,24 +104,29 @@ if __name__ == '__main__':
 		scriptFile = "script.template"
 	else:
 		scriptFile = arg.script
-		
 	
-	# Get a list of files in the folder
-	# First, check if the source data is there
-	if not os.path.exists(dataPath):
-		print "The folder for the source data %s could not be found. Exiting."%dataPath
-		sys.exit()
+	allObjects = FITScollection()	
+	if not operateFromList:
+		# Get a list of files in the folder
+		# First, check if the source data is there
+		if not os.path.exists(dataPath):
+			print "The folder for the source data %s could not be found. Exiting."%dataPath
+			sys.exit()
 	
-	searchString = "r.*.fits.fz"
-	search_re = re.compile(searchString)
+		searchString = "r.*.fits.fz"
+		search_re = re.compile(searchString)
 		 
-	(_, _, filenames) = os.walk(dataPath).next()
-	allObjects = FITScollection()
-	for file in filenames:
-		m = search_re.match(file)
-		if (m): 
-			allObjects.additem(file)
-
+		(_, _, filenames) = os.walk(dataPath).next()
+		for file in filenames:
+			m = search_re.match(file)
+			if (m): 
+				allObjects.additem(file)
+	else:
+		print "Getting filenames from the list: %s"%arg.list
+		fileList = open(arg.list, 'rt')
+		for line in fileList:
+			allObjects.additem(line.strip())
+		
 	print allObjects
 	allObjects.sort()
 	
@@ -138,6 +149,7 @@ if __name__ == '__main__':
 	for index, o in enumerate(allObjects.objectList):
 		status = o['processed']
 		filename = o['filename']
+		baseFilename = o['baseFilename']
 		if status == True: 
 			print "skipping", filename
 			continue
@@ -161,7 +173,7 @@ if __name__ == '__main__':
 		subprocess.call(hagridCommand)
 	
 		# Before marking status as processed, check to see if the output files are there
-		rootName = filename.split(".")[0]
+		rootName = baseFilename.split(".")[0]
 		outputFileCheck = workingPath + "/" + rootName + ".sources.fits"
 		print "Checking for output at:", outputFileCheck
 		if os.path.exists(outputFileCheck):

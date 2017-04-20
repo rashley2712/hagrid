@@ -215,7 +215,8 @@ class IPHASdataClass:
 	def loadFITSFile(self, filename):
 		hdulist = fits.open(filename)
 		self.filename = filename
-		self.rootname = filename.split(".")[0]
+		self.baseFilename = os.path.basename(filename)
+		self.rootname = self.baseFilename.split(".")[0]
 		FITSHeaders = []
 		self.rawHeaders = hdulist[0].header
 		for card in hdulist:
