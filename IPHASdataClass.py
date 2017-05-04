@@ -278,12 +278,13 @@ class IPHASdataClass:
 		
 		# First look for a cached copy of this data
 		filenameParts = self.filename.split('.')
-		catalogCache = filenameParts[0] + "_" + catalogName + "_cache.fits"
+		catalogCache = filenameParts[0].split('/')[-1] + "_" + catalogName + "_cache.fits"
 		cached = False
 		if not self.ignorecache:
 			localCacheFolder = self.cachedir
-			localCacheFile = os.path.join(localCacheFolder, filenameParts[0][0:4], catalogCache)
-			localCacheSubFolder = os.path.join(localCacheFolder, filenameParts[0][0:4])
+			cacheSubFolder = filenameParts[0].split('/')[-1][0:4]
+			localCacheFile = os.path.join(localCacheFolder, cacheSubFolder, catalogCache)
+			localCacheSubFolder = os.path.join(localCacheFolder, cacheSubFolder)
 			print "Looking for a local cached copy of the catalogue:", localCacheFile, 
 			if os.path.exists(localCacheFile):
 				print "FOUND"
@@ -312,7 +313,7 @@ class IPHASdataClass:
 				# Write the new catalog to the cache file
 				# newCatalog.write(catalogCache, format='fits', overwrite=True)
 				# We might need to create the folder 
-				print "Checking for existance of cache folder:", localCacheSubFolder
+				print "Checking for existence of cache folder:", localCacheSubFolder
 				if not os.path.exists(self.cachedir):
 					os.mkdir(self.cachedir)
 				if not os.path.exists(localCacheSubFolder):

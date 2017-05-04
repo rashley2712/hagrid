@@ -8,113 +8,124 @@ from astropy.vo.client.conesearch import list_catalogs
 from astropy.table import Table, vstack
 from astropy.coordinates import SkyCoord
 from astropy import units as u
+import numpy
 
 class locationsClass:
 	def __init__(self, filename = None):
 		self.locationList = []
 		self.filename = filename
-		defaultLocation = { 'name': 'cygnus_ha', 
-								'criteria': [ 	{'type' : 'coord',  'ra': 304.1963, 'dec': 37.1692, 'radius': 0.25} , 
-					      	  					{'type' : 'filter', 'band': 'halpha' } 
-					    					] }
-		self.appendLocation(defaultLocation)
 		if filename is not None:
-			self.loadFromFile(filename)
+			self.loadFromFileCSV(filename)
+		else:
+			defaultFilename = 'locations.csv'
+			defaultLocations = 	[ 	['cygnus',  304.1963, 37.1692, 0.25] , 
+									['perseus', 39.6075, 62.3381, 1.0] ]
+			self.appendLocations(defaultLocations)
+			self.saveToFileCSV(defaultFilename)
 		
-	def locationList(self):
+	def locationNames(self):
 		return [ l['name'] for l in self.locationList ]
 		
-	def loadFromFile(self, filename):
+	def loadFromFileCSV(self, filename):
 		print "Loading locations from file:", filename
-		jsonData = open(filename).read()
-		jsonObject = json.loads(jsonData)
-		print jsonObject
+		inputFile = open(filename, 'rt')
+		for f in inputFile:
+			items = f.strip().split(',')
+			if items[0][0] == '#': continue
+			try:
+				location = { 'name': items[0], 'ra': float(items[1]), 'dec': float(items[2]), 'radius': float(items[3])}
+				self.locationList.append(location)
+			except (ValueError, IndexError):
+				print "Could not interpret the line:", f
+		inputFile.close()
 		
-	def appendLocation(self, location):
-		self.locationList.append(location)
 		
+	def appendLocations(self, locations):
+		for l in locations:
+			location = {'name': l[0], 'ra': l[1], 'dec': l[2], 'radius': l[3]}
+			self.locationList.append(location)
+					
 	def getLocationByName(self, name):
 		for l in self.locationList:
-			print l['name']
 			if l['name'] == name.lower(): return l
 		return None
-		
-	def saveLocations(self):
-		print json.dumps(self.locationList)
+			
+	def saveToFileCSV(self, filename):
+		outfile = open(filename, 'wt')
+		outfile.write("# name, ra, dec, radius\n")
+		for l in self.locationList:
+			outfile.write("%s, %f, %f, %f\n"%(l['name'], l['ra'], l['dec'], l['radius']))
+		outfile.close()	
 		
 
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description='A simple Python tool build a file list of IPHAS images for input into hagrid (batch mode).')
+	parser.add_argument('location', type=str, help='A string specifying the location you want.')
 	parser.add_argument('-a', '--archive', type=str, help='The root folder in which the IPHAS images are contained (ie the IPHAS image archive). ')
-	parser.add_argument('-db', '--database', type=str, help='The IPHAS database file (usually "iphas-images.fits.gz", stored in the archive folder).')
+	parser.add_argument('-db', '--database', type=str, help='The IPHAS database file (usually "iphas-images.fits.gz", stored in the archive folder or installed with the hagrid app).')
 	parser.add_argument('-w', '--workingpath', type=str, help='A root folder for the temporary and output files.')
 	parser.add_argument('-o', '--output', type=str, help='The output file. Otherwise results will do to stdout and to a file called <criterion name>.list.')
+	parser.add_argument('-locationlist', type=str, help='Specify an alternative list of locations. By default this is ''location.csv'' and found in the install directory of ''hagrid''.')
+	parser.add_argument('--ra', type=float, help='The RA in degrees')
 	arg = parser.parse_args()
 	#print arg
+	installPath = os.path.realpath(__file__).rsplit('/',1)[0]
 	
-	# Could get the db file from: http://www.iphas.org/data/images/iphas-images.fits.gz
-	
-
 	if arg.archive is None: archivePath="."
 	else: archivePath = arg.archive
 	
 	if arg.database is None: 
-		dbFilename = os.path.join(archivePath, "iphas-images.fits.gz")
+		print "The program file is installed at:", installPath
+		dbFilename = os.path.join(installPath, "iphas-images.fits.gz")
+		# Could get the db file from: http://www.iphas.org/data/images/iphas-images.fits.gz
 	else:
 		dbFilename = arg.database
 	
 	if arg.workingpath is None: workingPath="."
 	else: workingPath = arg.workingpath
 
-	name = 'Cygnus'
-	locations = locationsClass(filename = 'temp.json')
+	name = arg.location
+	
+	if os.path.exists(os.path.join(installPath, 'locations.csv')):
+		locations = locationsClass(filename = os.path.join(installPath, 'locations.csv'))
+	else:
+		locations = locationsClass()
 	location = locations.getLocationByName(name)
 	if location is None:
 		print "No location to match."
 		sys.exit()
 	
 	try:
-		IPHASdb = Table.read(dbFilename)
+		IPHASdb = Table.read(dbFilename) 
+		print "Loaded the %d rows from %s."%(len(IPHASdb), dbFilename)
 	except IOError as e:
 		print "Could not find the IPHAS database file: %s"%dbFilename
 		sys.exit()
 	
+	print "Applying a coord criterion... for %s"%location['name']
+	center = SkyCoord(ra = location['ra'] * u.degree, dec = location['dec'] * u.degree)
+	print "Looking for matches to position %f, %f with a radius of %2.2f degrees."%(location['ra'], location['dec'], location['radius'])
+	catalog_RAs = IPHASdb['ra']
+	catalog_DECs = IPHASdb['dec']
+	catalog = SkyCoord(ra = catalog_RAs * u.degree, dec = catalog_DECs * u.degree )
 	
-	
-	for c in location['criteria']:
-		if c['type'] == 'coord':
-			print "Applying a coord criterion..."
-			center = SkyCoord(ra = c['ra'] * u.degree, dec = c['dec'] * u.degree)
-			print "Looking for matches to position %f, %f with a radius of %2.2f degrees."%(c['ra'], c['dec'], c['radius'])
-			catalog_RAs = IPHASdb['ra']
-			catalog_DECs = IPHASdb['dec']
-			catalog = SkyCoord(ra = catalog_RAs * u.degree, dec = catalog_DECs * u.degree )
-	
-			results = center.separation(catalog).degree
-			matches = []
-			for idx,r in enumerate(results):
-				if r < c['radius'] : matches.append(idx)
-			print "%d images have centres within %2.2f degrees of %s."%(len(matches), c['radius'], center.to_string('hmsdms'))
-			IPHASdb = IPHASdb[matches]
+	results = center.separation(catalog).degree
+	matches = []
+	for idx,r in enumerate(results):
+		if r < location['radius'] : matches.append(idx)
+	print "%d images have centres within %2.2f degrees of %s."%(len(matches), location['radius'], center.to_string('hmsdms'))
+	IPHASdb = IPHASdb[matches]
 			
-		if c['type'] =='filter':
-			print "Applying a filter criterion..."
-			filters = IPHASdb['band']
-			bands = c['band']
-			if isinstance(bands, list): 
-				print "More than one filter"
-			else:
-				bands = [c['band']]
+	print "Applying a filter criterion..."
+	filters = IPHASdb['band']
+	band = 'halpha'
+	matches = []
+	for idx, f in enumerate(filters):
+		if band == f: matches.append(idx)
 			
-			matches = []
-			for b in bands:
-				print "Checking for matches in the %s band."%b
-				for idx, f in enumerate(filters):
-					if b == f: matches.append(idx)
-			
-			print "In total, %s images match the filter criterion."%(len(matches)) 
-			IPHASdb = IPHASdb[matches]
+	print "In total, %s images match the filter criterion."%(len(matches)) 
+	IPHASdb = IPHASdb[matches]
 			
 	
 	
