@@ -1010,4 +1010,13 @@ class IPHASdataClass:
 		print "Masked range:", numpy.min(self.maskedImage), numpy.max(self.maskedImage)
 		"""
 		
+	def findMatch(self):
+		""" Find a match to the current CCD
+		"""
 		
+		# First check that we have a valid image loaded
+		if self.originalImageData is None:
+			print "There is no image loaded. Nothing to try to match to. Load one with the 'load' command."
+			return
+		
+		print self.FITSHeaders

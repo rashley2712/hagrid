@@ -231,6 +231,11 @@ class commandClass(cmd.Cmd):
 		
 		return
 		
+	def do_match(self, line):
+		""" Find a matching IPHAS image that is closest in RA, DEC centre and Date to the current loaded image
+		"""
+		self.IPHASdata.findMatch()
+		return
 		
 	def do_clear(self,line):
 		""" Clear the main image drawing panel
