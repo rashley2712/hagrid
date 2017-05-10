@@ -112,17 +112,21 @@ catalogMetadata = {
 			'r': 'r',
 			'H': 'ha',
 			'mag': 'r',
-		    'class': 'mergedClass',
-			'pStar': 'pStar', 
 		    'iclass': 'iClass', 
 		    'haClass': 'haClass',
-		    'pixelFWHM': 'haSeeing'},
+			'pixelFWHM': 'haSeeing',
+		    'class': 'mergedClass',
+			'pStar': 'pStar'
+		    },
 		'catalog_db': "http://vizier.u-strasbg.fr/viz-bin/votable/-A?-source=IPHAS2&-out.all&",
 		'VizierLookup': 'dr2',
 		'VizierName': 'II/321/iphas2',
 		'colour': 'green'
 	}
 }
+
+# 		'VizierName': 'II/321/iphas2',
+
 
 def maskRadius(object, catalogName, CCDseeing):
 	r = 0
@@ -295,16 +299,28 @@ class IPHASdataClass:
 				print "NOT FOUND"
 				print "Going online to fetch %s results from Vizier with mag limit %f."%(catalogName, self.magLimit)
 				from astroquery.vizier import Vizier
-				Vizier.ROW_LIMIT = 1E5
-				Vizier.column_filters={"r":"<%d"%self.magLimit}
+				# Vizier.ROW_LIMIT = 25000
 				from astropy import coordinates
 				from astropy import units as u
 				c = coordinates.SkyCoord(ra,dec,unit=('deg','deg'),frame='icrs')
 				skyRA  = coordinates.Angle(self.raRange, unit = u.deg)
 				skyDEC = coordinates.Angle(self.decRange, unit = u.deg)
+				if self.CCD == "CCD2":
+					width = coordinates.Angle(23, unit = u.arcmin)
+					height = coordinates.Angle(12, unit = u.arcmin)
+				else:
+					height = coordinates.Angle(23, unit = u.arcmin)
+					width = coordinates.Angle(12, unit = u.arcmin)
+
 				print "Sky RA, DEC range:", skyRA, skyDEC
+				print "Width, Height:", width, height
+
 				print "going to Astroquery for:", catalogMetadata[catalogName]['VizierLookup']
-				result = Vizier.query_region(coordinates = c, width = skyRA, height = skyDEC, catalog = catalogMetadata[catalogName]['VizierName'], verbose=True)
+				v = Vizier(columns=["all"], catalog= catalogMetadata[catalogName]['VizierName'])				
+				v.ROW_LIMIT = 25000
+				v.column_filters={"r":"<%d"%self.magLimit}
+				# result = Vizier.query_region(coordinates = c, width = skyRA, height = skyDEC, catalog = catalogMetadata[catalogName]['VizierName'], verbose=True)
+				result = v.query_region(coordinates = c, width = width, height = height, verbose=True)
 				print result
 				newCatalog = result[catalogMetadata[catalogName]['VizierName']]
 				newCatalog.pprint()
@@ -342,8 +358,6 @@ class IPHASdataClass:
 	def addCatalog(self, catTable, catalogName):
 		newCatalog = []
 		columnMapper = catalogMetadata[catalogName]['columns']
-		
-		
 		
 		skippedRowCount = 0
 		for index, row in enumerate(catTable):
