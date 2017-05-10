@@ -177,6 +177,7 @@ class IPHASdataClass:
 		self.CCD = "unknown"
 		self.cachedir = "/tmp/hagrid/"
 		self.CCDseeing = 0
+		self.rBandImageData = None
 		return None
 		
 	
@@ -901,6 +902,7 @@ class IPHASdataClass:
 			cols.append(fits.Column(name='variance', format = 'E', array = [o.varppixel for o in objects]))
 			cols.append(fits.Column(name='type', format = '8A', array = [o.type for o in objects]))
 			cols.append(fits.Column(name='CCD', format = '4A', array = [self.CCD for i in objects]))
+			cols.append(fits.Column(name='r-value', format = 'E', array = [o.rBandValue for o in objects]))
 			cols = fits.ColDefs(cols)
 			tbhdu = fits.BinTableHDU.from_columns(cols)
 			
@@ -1024,6 +1026,33 @@ class IPHASdataClass:
 		print "Masked range:", numpy.min(self.maskedImage), numpy.max(self.maskedImage)
 		"""
 		
+	def attachRBand(self, pointings):
+		""" Attach r-band values to the Halpha pointings
+		"""
+		if self.rBandImageData is None:
+			print "There is no r-band image loaded."
+			return
+		print numpy.shape(self.rBandImageData)
+
+		sources = self.getStoredObject(pointings)
+
+		for s in sources:
+			#print s.maxPosition, s.AbsoluteLocationPixels[0], s.AbsoluteLocationPixels[1], s.ra, s.dec
+			x, y = self.rBandwcsSolution.all_world2pix(s.ra, s.dec, 1)
+			print s.AbsoluteLocationPixels[0], s.AbsoluteLocationPixels[1], "in Halpha translates to", x[0], y[0], "in r-band."
+			index_x = int(round(x[0]))
+			index_y = int(round(y[0]))
+			print "Index:", index_x, index_y
+			try: 
+				r_value = self.rBandImageData[index_y,index_x]
+				print r_value
+				s.rBandValue = r_value
+			except IndexError:
+				print "Outside of CCD limits!"
+		return
+		
+		
+
 	def findMatch(self):
 		""" Find a match to the current CCD
 		"""
@@ -1033,4 +1062,109 @@ class IPHASdataClass:
 			print "There is no image loaded. Nothing to try to match to. Load one with the 'load' command."
 			return
 		
-		print self.FITSHeaders
+		JD = self.FITSHeaders['JD']
+		ra, dec = self.centre
+		radius = 5./60.
+		print "Looking for a match to %s centred at RA: %f, DEC: %f taken on %f"%(self.filename, ra, dec, JD)
+		
+		installPath = os.path.realpath(__file__).rsplit('/',1)[0]
+		dbFilename = os.path.join(installPath, "iphas-images.fits.gz")
+	
+		try:
+			IPHASdb = Table.read(dbFilename) 
+			print "Loaded the %d rows from %s."%(len(IPHASdb), dbFilename)
+		except IOError as e:
+			print "Could not find the IPHAS database file: %s"%dbFilename
+			return -1
+
+		# Filter out all but the r-band images
+		band = 'r'
+		filters = IPHASdb['band']
+		matches = []
+		for idx, f in enumerate(filters):
+			if band == f: matches.append(idx)
+			
+		print "%d images match the filter criterion: band = %s."%(len(matches), band) 
+		IPHASdb = IPHASdb[matches]
+
+		# Find the nearest image by position
+		from astropy.coordinates import SkyCoord
+		from astropy import units as u
+		center = SkyCoord(ra = ra * u.degree, dec = dec * u.degree)
+		catalog_RAs = IPHASdb['ra']
+		catalog_DECs = IPHASdb['dec']
+		catalog = SkyCoord(ra = catalog_RAs * u.degree, dec = catalog_DECs * u.degree )
+	
+		results = center.separation(catalog).degree
+		# results = sorted(results)
+		matches = []
+		for idx,r in enumerate(results):
+			if r < radius : matches.append(idx)
+		print "%d images have centres within %2.2f degrees of %s."%(len(matches), radius, center.to_string('hmsdms'))
+		IPHASdb = IPHASdb[matches]
+
+		dates = IPHASdb['utstart']
+		from astropy.time import Time
+		t = Time(dates, format='isot', scale='utc')
+		print "Taken on:", t.jd
+
+		timeDifference = [(JD - j) * 24 * 60 for j in t.jd]
+		minimum = 1E8
+		closest = -1
+		for index, t in enumerate(timeDifference):	
+			print "%d: %s was taken %.1f minutes"%(index, IPHASdb[index]['url'], abs(t)), 
+			if t<0: print "after",
+			else:
+				print "before",
+			print "the original" 
+			if abs(t) < minimum:
+				minimum = abs(t)
+				closest = index
+
+		closestImage = IPHASdb[closest] 
+		lastSlash =  self.filename.rfind('/')
+		secondLastSlash = self.filename[:lastSlash].rfind('/')
+		archivePath = self.filename[:secondLastSlash]
+		
+		url = closestImage['url']
+		filenameParts = url.split('/')[-2:]
+		filename = os.path.join(filenameParts[0], filenameParts[1])  
+		filename = os.path.join(archivePath, filename)
+		print "Loading the image:", filename
+		
+
+		self.rBand = { 'FITSHeaders' : {}}
+		hdulist = fits.open(filename)
+		for card in hdulist:
+			# print(card.header.keys())
+			# print(repr(card.header))
+			for key in card.header.keys():
+				self.rBand['FITSHeaders'][key] = card.header[key]
+		import astropy.io.fits as pf
+		self.rBandImageData = pf.getdata(filename, uint=False, do_not_scale_image_data=False)
+		# self.originalImageData =  hdulist[1].data
+		height, width = numpy.shape(self.originalImageData)
+		self.rBandwcsSolution = WCS(hdulist[1].header)
+		print "width, height", width, height, "shape:", numpy.shape(self.rBandImageData)
+		
+		hdulist.close()
+
+		print "Boosting the image"
+		self.rBandBoostedImage = generalUtils.percentiles(numpy.copy(self.rBandImageData), 20, 99)
+		matplotlib.pyplot.ion()
+		# mplFrame = numpy.rot90(self.boostedImage)
+		mplFrame = self.rBandBoostedImage
+		mplFrame = numpy.flipud(mplFrame)
+		self.figure = matplotlib.pyplot.figure(filename, figsize=(self.figSize/1.618, self.figSize))
+		self.figure.frameon = False
+		self.figure.set_tight_layout(True)
+		axes = matplotlib.pyplot.gca()
+		axes.set_axis_off()
+		self.figure.add_axes(axes)
+		imgplot = matplotlib.pyplot.imshow(mplFrame, cmap="Reds", interpolation='nearest')
+		
+		matplotlib.pyplot.draw()
+		matplotlib.pyplot.show(block=False)
+		matplotlib.pyplot.draw()
+		matplotlib.pyplot.pause(0.01)
+		

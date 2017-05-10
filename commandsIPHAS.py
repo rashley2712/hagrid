@@ -206,7 +206,16 @@ class commandClass(cmd.Cmd):
 		value = params[1]
 		self.IPHASdata.setProperty(propertyToSet, value)
 		return
-		
+	
+	def do_attachrband(self, line):
+		params = line.split()
+		if len(params)< 1:
+			print "Usage 'attachrband [pointingsname]'"
+			return
+		self.IPHASdata.attachRBand(params[0])
+
+		return
+	
 	def do_dump(self, line):
 		""" dump an object to disk
 		dump [objectname] [filename] [format]
