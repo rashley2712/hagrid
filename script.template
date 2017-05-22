@@ -18,9 +18,10 @@ set spacinglimit 1
 get pointings 50 top
 set spacinglimit 5
 get pointings -7 bottom
+match
+attachrband top
+attachrband bottom
 #trim top bottom
-clear
-draw original
 plot object top
 set colour b
 plot object bottom
