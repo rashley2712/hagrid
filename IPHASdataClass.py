@@ -902,7 +902,7 @@ class IPHASdataClass:
 			cols.append(fits.Column(name='variance', format = 'E', array = [o.varppixel for o in objects]))
 			cols.append(fits.Column(name='type', format = '8A', array = [o.type for o in objects]))
 			cols.append(fits.Column(name='CCD', format = '4A', array = [self.CCD for i in objects]))
-			cols.append(fits.Column(name='r-value', format = 'E', array = [o.rBandValue for o in objects]))
+			cols.append(fits.Column(name='r', format = 'E', array = [o.rBandValue for o in objects]))
 			cols = fits.ColDefs(cols)
 			tbhdu = fits.BinTableHDU.from_columns(cols)
 			
