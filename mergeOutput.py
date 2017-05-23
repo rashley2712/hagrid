@@ -200,6 +200,7 @@ class FITSdata:
 		cols.append(fits.Column(name='type', format = '8A', array = [o['type'] for o in objects]))
 		cols.append(fits.Column(name='CCD', format = '4A', array = [o['CCD'] for o in objects]))
 		cols.append(fits.Column(name='sky_mean', format = 'E', array = [o['sky_mean'] for o in objects]))
+		cols.append(fits.Column(name='r', format = 'E', array = [o['r'] for o in objects]))
 		cols = fits.ColDefs(cols)
 		tbhdu = fits.BinTableHDU.from_columns(cols)
 			
@@ -208,7 +209,7 @@ class FITSdata:
 			
 		prihdu = fits.PrimaryHDU(header=prihdr)
 		thdulist = fits.HDUList([prihdu, tbhdu])
-		thdulist.writeto(filename, overwrite=True)
+		thdulist.writeto(filename, clobber=True)
 	
 
 
