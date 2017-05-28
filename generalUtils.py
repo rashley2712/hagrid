@@ -20,7 +20,7 @@ def downloadFITS(url, outputFilename):
 	import subprocess
 	wgetCommand = ["wget"]
 	wgetCommand.append(url)
-	wgetCommand.append('-o')
+	wgetCommand.append('-O')
 	wgetCommand.append(outputFilename)
 					
 	try: 
