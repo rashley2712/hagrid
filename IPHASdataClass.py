@@ -1044,7 +1044,17 @@ class IPHASdataClass:
 			index_y = int(round(y[0]))
 			print "Index:", index_x, index_y
 			try: 
-				r_value = self.rBandImageData[index_y,index_x]
+				r_value = self.rBandImageData[index_y-1, index_x-1 ]
+				r_value+= self.rBandImageData[index_y-1, index_x ]
+				r_value+= self.rBandImageData[index_y-1, index_x+1 ]
+				r_value+= self.rBandImageData[index_y,   index_x-1]
+				r_value+= self.rBandImageData[index_y,   index_x]
+				r_value+= self.rBandImageData[index_y,   index_x-1]
+				r_value+= self.rBandImageData[index_y+1 ,index_x-1]
+				r_value+= self.rBandImageData[index_y+1 ,index_x]
+				r_value+= self.rBandImageData[index_y+1 ,index_x+1]
+				r_value/=9
+				r_value/=3
 				print r_value
 				s.rBandValue = r_value
 			except IndexError:
