@@ -15,6 +15,35 @@ def percentiles(data, lo, hi):
     data/=scale
     return data
     
+	
+def getFITSfilename(filename, archivePath, cacheDir):
+	if os.path.exists(filename):
+		return filename
+	else:
+		# Try using the Archive Path (local variable) to find the file
+		subFolder = filename[0:4]
+		archiveFilename = os.path.join(archivePath, subFolder, filename)
+		print "trying filename:", archiveFilename
+		if os.path.exists(archiveFilename):
+			return archiveFilename
+		else:
+			print "Warning: Could not find the file %s. Perhaps try modifying the archive path, which is currently: '%s'"%(filename, archivePath)
+			try:
+				IPHAS_URL = "http://www.iphas.org/data/images/"
+				IPHAS_URL = os.path.join(IPHAS_URL, subFolder, filename)
+				outputFilename = os.path.join(archivePath, subFolder, filename)
+				outputFolder = os.path.split(outputFilename)[0]
+				if not os.path.exists(outputFolder):
+					print "Making folder", outputFolder
+					os.makedirs(outputFolder)
+				print "Going online for", IPHAS_URL
+				downloadFITS(IPHAS_URL, outputFilename)
+				return outputFilename
+			except Exception as e:
+				print "Couldn't get the URL", e
+			
+	return -1
+	
 def downloadFITS(url, outputFilename):
 	print "Preparing download of ", url
 	import subprocess

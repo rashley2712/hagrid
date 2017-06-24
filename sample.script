@@ -1,4 +1,5 @@
 echo on
+set archive /tmp/hagrid
 set plotwindowsize 12
 load r379556-2.fits.fz
 draw original
@@ -10,17 +11,16 @@ plot cat usno
 mask dr2
 mask usno
 mask border
-# apply
 set superpixelsize 25
 make pixels
 set spacinglimit 1
 get pointings 50 top
-plot object top
-type object top
-draw object top 1 preview
-clear
-draw original
-get pointings -50 bottom
+get pointings -10 bottom
+match
+attachrband top
+attachrband bottom
+# clear
+# draw original
 plot object top
 set colour b
 plot object bottom

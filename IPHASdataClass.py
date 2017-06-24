@@ -153,6 +153,7 @@ class IPHASdataClass:
 	def __init__(self):
 		print "Initialising an empty IPHAS data class"
 		self.originalImageData = None
+		self.archivePath = "."
 		self.boostedImage = None
 		self.FITSHeaders = {}
 		self.filter = None
@@ -176,6 +177,7 @@ class IPHASdataClass:
 		self.activeColour = 'r'
 		self.CCD = "unknown"
 		self.cachedir = "/tmp/hagrid/"
+		self.cacheImages = False
 		self.CCDseeing = 0
 		self.rBandImageData = None
 		self.figure = None
@@ -188,6 +190,11 @@ class IPHASdataClass:
 		falses = ["false", "no", "off", "0", "N", "n", "False"]
 		if property=='maglimit':
 			self.__dict__['magLimit'] = float(value)
+		if property=="cacheimages":
+			if value in truths:
+				self.cacheImages = True
+			if value in falses:
+				self.cacheImages = False
 		if property=="ignorecache":
 			if value in truths:
 				self.ignorecache = True
@@ -208,6 +215,8 @@ class IPHASdataClass:
 			self.__dict__['activeColour'] = str(value)
 		if property=='cachedir':
 			self.__dict__['cachedir'] = str(value)
+		if property=='archive':
+			self.__dict__['archivePath'] = str(value)
 			
 
 			
@@ -219,10 +228,13 @@ class IPHASdataClass:
 		return None	
 		
 	def loadFITSFile(self, filename):
-		hdulist = fits.open(filename)
-		self.filename = filename
-		self.baseFilename = os.path.basename(filename)
+		
+		self.filename = generalUtils.getFITSfilename(filename, self.archivePath, self.cachedir)
+		if self.filename == -1: return -1
+		self.baseFilename = os.path.basename(self.filename)
 		self.rootname = self.baseFilename.split(".")[0]
+		
+		hdulist = fits.open(self.filename)
 		FITSHeaders = []
 		self.rawHeaders = hdulist[0].header
 		for card in hdulist:
@@ -233,7 +245,7 @@ class IPHASdataClass:
 				if 'WFFBAND' in key:
 					self.filter = card.header[key]
 		import astropy.io.fits as pf
-		self.originalImageData = pf.getdata(filename, uint=False, do_not_scale_image_data=False)
+		self.originalImageData = pf.getdata(self.filename, uint=False, do_not_scale_image_data=False)
 		# self.originalImageData =  hdulist[1].data
 		self.height, self.width = numpy.shape(self.originalImageData)
 		self.wcsSolution = WCS(hdulist[1].header)
@@ -260,6 +272,8 @@ class IPHASdataClass:
 			print "WARNING: Could not find the 'seeing' value for this image in the FITS headers."
 			
 		hdulist.close()
+		
+		return
 		
 	def showVizierCatalogs(self):
 		(ra, dec) = self.centre
@@ -329,7 +343,6 @@ class IPHASdataClass:
 			
 			
 				# Write the new catalog to the cache file
-				# newCatalog.write(catalogCache, format='fits', overwrite=True)
 				# We might need to create the folder 
 				print "Checking for existence of cache folder:", localCacheSubFolder
 				if not os.path.exists(self.cachedir):
@@ -653,11 +666,10 @@ class IPHASdataClass:
 		axes = matplotlib.pyplot.gca()
 		axes.set_axis_off()
 		self.figure.add_axes(axes)
-		imgplot = matplotlib.pyplot.imshow(mplFrame, cmap="gray_r", interpolation='nearest')
+		imgplot = matplotlib.pyplot.imshow(mplFrame, cmap="Oranges", interpolation='nearest')
 		
 		matplotlib.pyplot.draw()
 		matplotlib.pyplot.show(block=False)
-		matplotlib.pyplot.draw()
 		matplotlib.pyplot.pause(0.01)
 		
 		# matplotlib.pyplot.savefig("test.png",bbox_inches='tight')
@@ -1075,7 +1087,7 @@ class IPHASdataClass:
 		# First check that we have a valid image loaded
 		if self.originalImageData is None:
 			print "There is no image loaded. Nothing to try to match to. Load one with the 'load' command."
-			return
+			return -1
 		
 		JD = self.FITSHeaders['JD']
 		ra, dec = self.centre
@@ -1143,8 +1155,8 @@ class IPHASdataClass:
 		
 		url = closestImage['url']
 		filenameParts = url.split('/')[-2:]
-		filename = os.path.join(filenameParts[0], filenameParts[1])  
-		filename = os.path.join(archivePath, filename)
+		filename = generalUtils.getFITSfilename(filenameParts[1], self.archivePath, self.cachedir)
+		print "r band image filename:", filename
 		print "Loading the image:", filename
 		
 

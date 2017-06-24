@@ -149,12 +149,9 @@ class commandClass(cmd.Cmd):
 		""" load
 		Load a FITS file. """
 		print "Loading...", line
-		if not os.path.exists(line):
-			print "Could not find a file named:", line
-			return
 		
-		self.IPHASdata.loadFITSFile(line)
-		return 
+		response = self.IPHASdata.loadFITSFile(line)
+		return response
 		
 	def do_show(self, line):
 		""" show
