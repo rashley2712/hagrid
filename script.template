@@ -21,11 +21,15 @@ get pointings -7 bottom
 match
 attachrband top
 attachrband bottom
-#trim top bottom
-plot object top
+load {filename}
+clear
+draw original
 set colour b
+plot object top
+set colour r
 plot object bottom
-dump image {workingpath}/{root}.png
+dump image ./{root}.png
 dump top {workingpath}/{root}.sources.fits fits 
 dump bottom {workingpath}/{root}.sky.fits fits 
 quit
+

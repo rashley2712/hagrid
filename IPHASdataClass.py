@@ -178,6 +178,7 @@ class IPHASdataClass:
 		self.cachedir = "/tmp/hagrid/"
 		self.CCDseeing = 0
 		self.rBandImageData = None
+		self.figure = None
 		return None
 		
 	
@@ -585,6 +586,7 @@ class IPHASdataClass:
 		
 		# Get the main plotting figure
 		matplotlib.pyplot.figure(self.figure.number)
+		print "Setting figure number to: ", self.figure.number
 		
 		for index, o in enumerate(objects):
 			position = o.getPixelPosition()
@@ -642,7 +644,10 @@ class IPHASdataClass:
 		# mplFrame = numpy.rot90(self.boostedImage)
 		mplFrame = self.boostedImage
 		mplFrame = numpy.flipud(mplFrame)
-		self.figure = matplotlib.pyplot.figure(self.filename, figsize=(self.figSize/1.618, self.figSize))
+		if self.figure is None:
+			self.figure = matplotlib.pyplot.figure(self.filename, figsize=(self.figSize/1.618, self.figSize))
+		else:
+			matplotlib.pyplot.figure(self.figure.number)
 		self.figure.frameon = False
 		self.figure.set_tight_layout(True)
 		axes = matplotlib.pyplot.gca()
