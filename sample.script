@@ -19,8 +19,9 @@ get pointings -10 bottom
 match
 attachrband top
 attachrband bottom
-# clear
-# draw original
+clear
+draw original
+set colour r
 plot object top
 set colour b
 plot object bottom
