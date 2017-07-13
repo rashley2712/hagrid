@@ -65,7 +65,7 @@ if __name__ == '__main__':
 	parser.add_argument('-a', '--archive', type=str, help='The root folder in which the IPHAS images are contained (ie the IPHAS image archive). ')
 	parser.add_argument('-db', '--database', type=str, help='The IPHAS database file (usually "iphas-images.fits.gz", stored in the archive folder or installed with the hagrid app).')
 	parser.add_argument('-w', '--workingpath', type=str, help='A root folder for the temporary and output files.')
-	parser.add_argument('-o', '--output', type=str, help='The output file. Otherwise results will do to stdout and to a file called <criterion name>.list.')
+	parser.add_argument('-o', '--output', type=str, help='The output file. Otherwise results will dump to stdout and to a file called <criterion name>.list.')
 	parser.add_argument('-locationlist', type=str, help='Specify an alternative list of locations. By default this is ''location.csv'' and found in the install directory of ''hagrid''.')
 	parser.add_argument('--ra', type=float, help='The RA in degrees')
 	arg = parser.parse_args()
@@ -98,7 +98,7 @@ if __name__ == '__main__':
 	
 	try:
 		IPHASdb = Table.read(dbFilename) 
-		print "Loaded the %d rows from %s."%(len(IPHASdb), dbFilename)
+		print "Loaded %d rows from %s."%(len(IPHASdb), dbFilename)
 	except IOError as e:
 		print "Could not find the IPHAS database file: %s"%dbFilename
 		sys.exit()
