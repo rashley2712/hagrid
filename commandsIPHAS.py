@@ -103,6 +103,20 @@ class commandClass(cmd.Cmd):
 			
 		return
 		
+	def do_median(self, line):
+		""" median
+		Apply a median nxn filter to the whole image """
+		params = line.split()
+		try: 
+			size = int(params[0])
+			self.IPHASdata.applyMedianFilter(size)
+		except Exception as e:
+			print "Need an integer value for the size of the median filter."
+			print e
+		
+		return
+			
+	
 	def do_plot(self, line):
 		""" plot
 		Plot a catalog over an existing image """

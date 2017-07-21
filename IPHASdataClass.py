@@ -132,9 +132,9 @@ def maskRadius(object, catalogName, CCDseeing):
 	r = 0
 	if catalogName=='dr2':
 		if CCDseeing!=0:
-		    r = object['pixelFWHM'] * 2.8 * CCDseeing
+		    r = 3.0 * 1.5 * CCDseeing
 		else:
-		    r = 4.0 * object['pixelFWHM'] 
+		    r = 3.0 * 1.5 * object['pixelFWHM'] 
 	else:
 		if object['mag']>12:
 			r = 40*math.exp((-object['mag']+12)/4)
@@ -695,6 +695,17 @@ class IPHASdataClass:
 		matplotlib.pyplot.draw()
 		matplotlib.pyplot.show()
 		matplotlib.pyplot.pause(0.01)
+		
+	def applyMedianFilter(self, size):
+		""" Applies a median filter of sizexsize to image
+		"""
+		import scipy.signal
+		print "Applying a median filter of %d x %d to the image."%(size, size)
+		
+		originalImage = self.originalImageData
+		filteredImage = scipy.signal.medfilt2d(originalImage, size)
+		self.originalImageData = filteredImage
+		return
 
 	def makeSuperPixels(self):
 		superPixelList = []
