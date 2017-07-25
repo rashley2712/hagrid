@@ -33,7 +33,11 @@ class locationsClass:
 			items = f.strip().split(',')
 			if items[0][0] == '#': continue
 			try:
-				location = { 'name': items[0], 'ra': float(items[1]), 'dec': float(items[2]), 'radius': float(items[3])}
+                                if "x" in items[3]:
+                                    sqsize=items[3].split("x")
+                                    location = { 'name': items[0], 'ra': float(items[1]), 'dec': float(items[2]), 'ra_size': float(sqsize[0]), 'dec_size': float(sqsize[1])}
+                                else:
+				    location = { 'name': items[0], 'ra': float(items[1]), 'dec': float(items[2]), 'radius': float(items[3])}
 				self.locationList.append(location)
 			except (ValueError, IndexError):
 				print "Could not interpret the line:", f
@@ -105,16 +109,23 @@ if __name__ == '__main__':
 	
 	print "Applying a coord criterion... for %s"%location['name']
 	center = SkyCoord(ra = location['ra'] * u.degree, dec = location['dec'] * u.degree)
-	print "Looking for matches to position %f, %f with a radius of %2.2f degrees."%(location['ra'], location['dec'], location['radius'])
 	catalog_RAs = IPHASdb['ra']
 	catalog_DECs = IPHASdb['dec']
 	catalog = SkyCoord(ra = catalog_RAs * u.degree, dec = catalog_DECs * u.degree )
 	
-	results = center.separation(catalog).degree
 	matches = []
-	for idx,r in enumerate(results):
-		if r < location['radius'] : matches.append(idx)
-	print "%d images have centres within %2.2f degrees of %s."%(len(matches), location['radius'], center.to_string('hmsdms'))
+        if 'radius' in location:
+	    print "Looking for matches to position %f, %f with a radius of %2.2f degrees."%(location['ra'], location['dec'], location['radius'])
+	    results = center.separation(catalog).degree
+	    for idx,r in enumerate(results):
+                if r < location['radius'] : matches.append(idx)
+	    print "%d images have centres within %2.2f degrees of %s."%(len(matches), location['radius'], center.to_string('hmsdms'))
+        else:
+	    print "Looking for matches to position %f, %f with a box of %2.2fx%2.2f degrees."%(location['ra'], location['dec'], location['ra_size'], location['dec_size'])
+	    dra,ddec = center.spherical_offsets_to(catalog)
+	    for idx,r in enumerate(dra):
+                if r.degree < location['ra_size']/2. and ddec[idx].degree < location['dec_size']/2.: matches.append(idx)
+	    print "%d images have centres within a box of %2.2fx%2.2f degrees of %s."%(len(matches), location['ra_size'], location['dec_size'], center.to_string('hmsdms'))
 	IPHASdb = IPHASdb[matches]
 			
 	print "Applying a filter criterion..."
@@ -122,7 +133,10 @@ if __name__ == '__main__':
 	band = 'halpha'
 	matches = []
 	for idx, f in enumerate(filters):
-		if band == f: matches.append(idx)
+            grade=IPHASdb["qcgrade"][idx]
+            if grade.startswith("C") or grade.startswith("D"):
+              if IPHASdb["in_dr2"][idx]=="false": continue
+	    if band == f: matches.append(idx)
 			
 	print "In total, %s images match the filter criterion."%(len(matches)) 
 	IPHASdb = IPHASdb[matches]
