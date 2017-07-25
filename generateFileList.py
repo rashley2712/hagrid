@@ -133,7 +133,9 @@ if __name__ == '__main__':
 	band = 'halpha'
 	matches = []
 	for idx, f in enumerate(filters):
-            if IPHASdb["in_dr2"][idx]=="false": continue
+            grade=IPHASdb["qcgrade"][idx]
+            if grade.startswith("C") or grade.startswith("D"):
+              if IPHASdb["in_dr2"][idx]=="false": continue
 	    if band == f: matches.append(idx)
 			
 	print "In total, %s images match the filter criterion."%(len(matches)) 
