@@ -8,7 +8,7 @@ from astropy.vo.client.conesearch import list_catalogs
 from astropy.table import Table, vstack
 from astropy.coordinates import SkyCoord
 from astropy import units as u
-import numpy
+import math, numpy
 
 class locationsClass:
 	def __init__(self, filename = None):
@@ -18,8 +18,8 @@ class locationsClass:
 			self.loadFromFileCSV(filename)
 		else:
 			defaultFilename = 'locations.csv'
-			defaultLocations = 	[ 	['cygnus',  304.1963, 37.1692, 0.25] , 
-									['perseus', 39.6075, 62.3381, 1.0] ]
+			defaultLocations = 	[ 	['cygnus',  'icrs', 304.1963, 37.1692, 0.25] , 
+									['perseus', 'icrs', 39.6075, 62.3381, 1.0] ]
 			self.appendLocations(defaultLocations)
 			self.saveToFileCSV(defaultFilename)
 		
@@ -33,11 +33,11 @@ class locationsClass:
 			items = f.strip().split(',')
 			if items[0][0] == '#': continue
 			try:
-                                if "x" in items[3]:
-                                    sqsize=items[3].split("x")
-                                    location = { 'name': items[0], 'ra': float(items[1]), 'dec': float(items[2]), 'ra_size': float(sqsize[0]), 'dec_size': float(sqsize[1])}
+                                if "x" in items[4]:
+                                    sqsize=items[4].split("x")
+                                    location = { 'name': items[0], 'system': items[1].strip(), 'ra': float(items[2]), 'dec': float(items[3]), 'ra_size': float(sqsize[0]), 'dec_size': float(sqsize[1])}
                                 else:
-				    location = { 'name': items[0], 'ra': float(items[1]), 'dec': float(items[2]), 'radius': float(items[3])}
+                                    location = { 'name': items[0], 'system': items[1].strip(), 'ra': float(items[2]), 'dec': float(items[3]), 'radius': float(items[4])}
 				self.locationList.append(location)
 			except (ValueError, IndexError):
 				print "Could not interpret the line:", f
@@ -46,8 +46,8 @@ class locationsClass:
 		
 	def appendLocations(self, locations):
 		for l in locations:
-			location = {'name': l[0], 'ra': l[1], 'dec': l[2], 'radius': l[3]}
-			self.locationList.append(location)
+                    location = {'name': l[0], 'system': l[1], 'ra': l[2], 'dec': l[3], 'radius': l[4]}
+		    self.locationList.append(location)
 					
 	def getLocationByName(self, name):
 		for l in self.locationList:
@@ -56,9 +56,9 @@ class locationsClass:
 			
 	def saveToFileCSV(self, filename):
 		outfile = open(filename, 'wt')
-		outfile.write("# name, ra, dec, radius\n")
+		outfile.write("# name, system, ra, dec, radius\n")
 		for l in self.locationList:
-			outfile.write("%s, %f, %f, %f\n"%(l['name'], l['ra'], l['dec'], l['radius']))
+			outfile.write("%s, %s, %f, %f, %f\n"%(l['name'], l['system'], l['ra'], l['dec'], l['radius']))
 		outfile.close()	
 		
 
@@ -108,23 +108,29 @@ if __name__ == '__main__':
 		sys.exit()
 	
 	print "Applying a coord criterion... for %s"%location['name']
-	center = SkyCoord(ra = location['ra'] * u.degree, dec = location['dec'] * u.degree)
+	center = SkyCoord(location['ra']*u.degree, location['dec']*u.degree, frame=location['system'])
+        if location['system']!="icrs":
+          center=center.transform_to('icrs')
 	catalog_RAs = IPHASdb['ra']
 	catalog_DECs = IPHASdb['dec']
-	catalog = SkyCoord(ra = catalog_RAs * u.degree, dec = catalog_DECs * u.degree )
+	catalog = SkyCoord(ra = catalog_RAs * u.degree, dec = catalog_DECs * u.degree)
 	
 	matches = []
         if 'radius' in location:
-	    print "Looking for matches to position %f, %f with a radius of %2.2f degrees."%(location['ra'], location['dec'], location['radius'])
+            # round selection
+	    print "Looking for matches to %s position %f, %f with a radius of %2.2f degrees."%(location['system'], location['ra'], location['dec'], location['radius'])
 	    results = center.separation(catalog).degree
 	    for idx,r in enumerate(results):
                 if r < location['radius'] : matches.append(idx)
 	    print "%d images have centres within %2.2f degrees of %s."%(len(matches), location['radius'], center.to_string('hmsdms'))
         else:
-	    print "Looking for matches to position %f, %f with a box of %2.2fx%2.2f degrees."%(location['ra'], location['dec'], location['ra_size'], location['dec_size'])
+            # square selection
+	    print "Looking for matches to %s position %f, %f with a box of %2.2fx%2.2f degrees."%(location['system'], location['ra'], location['dec'], location['ra_size'], location['dec_size'])
 	    dra,ddec = center.spherical_offsets_to(catalog)
+            dra=dra.degree
+            ddec=ddec.degree
 	    for idx,r in enumerate(dra):
-                if r.degree < location['ra_size']/2. and ddec[idx].degree < location['dec_size']/2.: matches.append(idx)
+                if abs(r) < location['ra_size']/2. and abs(ddec[idx]) < location['dec_size']/2.: matches.append(idx)
 	    print "%d images have centres within a box of %2.2fx%2.2f degrees of %s."%(len(matches), location['ra_size'], location['dec_size'], center.to_string('hmsdms'))
 	IPHASdb = IPHASdb[matches]
 			
@@ -141,7 +147,10 @@ if __name__ == '__main__':
 	print "In total, %s images match the filter criterion."%(len(matches)) 
 	IPHASdb = IPHASdb[matches]
 			
-	
+	# plot selection
+        import pylab
+        pylab.plot(IPHASdb['ra'],IPHASdb['dec'],".")
+        pylab.show()
 	
 	# Now create the filename list
 	fileSubFolders = [ u.split('/')[-2] + '/' + u.split('/')[-1] for u in IPHASdb['url'] ]
