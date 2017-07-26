@@ -9,6 +9,10 @@ from matplotlib.path import Path
 import numpy, math, os, sys, json
 import generalUtils
 import astroquery
+import matplotlib
+if os.path.exists("noplot"):
+	print "Found a file called 'noplot'. Disabling plotting to desktop."
+	matplotlib.use('Agg')
 import matplotlib.pyplot
 import datetime
 
@@ -217,8 +221,6 @@ class IPHASdataClass:
 			self.__dict__['cachedir'] = str(value)
 		if property=='archive':
 			self.__dict__['archivePath'] = str(value)
-			
-
 			
 	def getStoredObject(self, name):
 		try:
@@ -501,7 +503,7 @@ class IPHASdataClass:
 		imgplot = matplotlib.pyplot.imshow(numpy.flipud(self.mask), cmap="gray_r", interpolation='nearest')
 		matplotlib.pyplot.draw()
 		matplotlib.pyplot.show()
-		matplotlib.pyplot.pause(0.01)
+		# matplotlib.pyplot.pause(0.01)
 		
 		return
 	
@@ -614,7 +616,7 @@ class IPHASdataClass:
 			
 		matplotlib.pyplot.draw()
 		matplotlib.pyplot.show()
-		matplotlib.pyplot.pause(0.01)
+		# matplotlib.pyplot.pause(0.01)
 		return
 		
 		
@@ -670,7 +672,7 @@ class IPHASdataClass:
 		
 		matplotlib.pyplot.draw()
 		matplotlib.pyplot.show(block=False)
-		matplotlib.pyplot.pause(0.01)
+		# matplotlib.pyplot.pause(0.01)
 		
 		# matplotlib.pyplot.savefig("test.png",bbox_inches='tight')
 		
@@ -723,7 +725,7 @@ class IPHASdataClass:
 			matplotlib.pyplot.plot([xStep, xStep], [borderMask, self.height - borderMask], ls=':', color='r', lw=2)
 		matplotlib.pyplot.draw()
 		matplotlib.pyplot.show()
-		matplotlib.pyplot.pause(0.01)
+		# matplotlib.pyplot.pause(0.01)
 		# End of drawing
 		
 		imageCopy = numpy.copy(self.originalImageData)
@@ -1204,5 +1206,5 @@ class IPHASdataClass:
 		matplotlib.pyplot.draw()
 		matplotlib.pyplot.show(block=False)
 		matplotlib.pyplot.draw()
-		matplotlib.pyplot.pause(0.01)
+		# matplotlib.pyplot.pause(0.01)
 		
