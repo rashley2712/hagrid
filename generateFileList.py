@@ -66,8 +66,9 @@ class locationsClass:
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description='A simple Python tool build a file list of IPHAS images for input into hagrid (batch mode).')
 	parser.add_argument('location', type=str, help='A string specifying the location you want.')
-	parser.add_argument('-a', '--archive', type=str, help='The root folder in which the IPHAS images are contained (ie the IPHAS image archive). ')
+	parser.add_argument('-a', '--archive', type=str, help='The root folder in which the IPHAS images are contained (ie the IPHAS image archive).')
 	parser.add_argument('-db', '--database', type=str, help='The IPHAS database file (usually "iphas-images.fits.gz", stored in the archive folder or installed with the hagrid app).')
+	parser.add_argument('-p', '--plot', action='store_true', help='Plot the selection.')
 	parser.add_argument('-w', '--workingpath', type=str, help='A root folder for the temporary and output files.')
 	parser.add_argument('-o', '--output', type=str, help='The output file. Otherwise results will dump to stdout and to a file called <criterion name>.list.')
 	parser.add_argument('-locationlist', type=str, help='Specify an alternative list of locations. By default this is ''location.csv'' and found in the install directory of ''hagrid''.')
@@ -109,11 +110,12 @@ if __name__ == '__main__':
 	
 	print "Applying a coord criterion... for %s"%location['name']
 	center = SkyCoord(location['ra']*u.degree, location['dec']*u.degree, frame=location['system'])
-        if location['system']!="icrs":
-          center=center.transform_to('icrs')
 	catalog_RAs = IPHASdb['ra']
 	catalog_DECs = IPHASdb['dec']
 	catalog = SkyCoord(ra = catalog_RAs * u.degree, dec = catalog_DECs * u.degree)
+        # convert catalog to coordinate system in use
+        if location['system']!="icrs":
+            catalog = catalog.transform_to(location['system'])
 	
 	matches = []
         if 'radius' in location:
@@ -148,9 +150,10 @@ if __name__ == '__main__':
 	IPHASdb = IPHASdb[matches]
 			
 	# plot selection
-        import pylab
-        pylab.plot(IPHASdb['ra'],IPHASdb['dec'],".")
-        pylab.show()
+        if arg.plot:
+            import pylab
+            pylab.plot(IPHASdb['ra'],IPHASdb['dec'],".")
+            pylab.show()
 	
 	# Now create the filename list
 	fileSubFolders = [ u.split('/')[-2] + '/' + u.split('/')[-1] for u in IPHASdb['url'] ]
