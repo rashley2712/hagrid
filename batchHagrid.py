@@ -125,7 +125,7 @@ if __name__ == '__main__':
 		print "Getting filenames from the list: %s"%arg.list
 		fileList = open(arg.list, 'rt')
 		for line in fileList:
-			allObjects.additem(line.strip())
+			if len(line)>3: allObjects.additem(line.strip())
 		
 	print allObjects
 	allObjects.sort()

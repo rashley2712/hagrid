@@ -23,8 +23,9 @@ def getFITSfilename(filename, archivePath, cacheDir):
 		# Try using the Archive Path (local variable) to find the file
 		subFolder = filename[0:4]
 		archiveFilename = os.path.join(archivePath, subFolder, filename)
-		print "trying filename:", archiveFilename
-		if os.path.exists(archiveFilename):
+		print "trying filename from archive path:", archiveFilename
+		if os.path.isfile(archiveFilename):
+			print "Found it!"
 			return archiveFilename
 		else:
 			print "Warning: Could not find the file %s. Perhaps try modifying the archive path, which is currently: '%s'"%(filename, archivePath)

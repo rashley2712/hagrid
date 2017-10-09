@@ -232,6 +232,7 @@ class IPHASdataClass:
 	def loadFITSFile(self, filename):
 		
 		self.filename = generalUtils.getFITSfilename(filename, self.archivePath, self.cachedir)
+		print "Debugging self.filename", self.filename
 		if self.filename == -1: return -1
 		self.baseFilename = os.path.basename(self.filename)
 		self.rootname = self.baseFilename.split(".")[0]
@@ -300,7 +301,8 @@ class IPHASdataClass:
 		
 		# First look for a cached copy of this data
 		filenameParts = self.filename.split('.')
-		catalogCache = filenameParts[0].split('/')[-1] + "_" + catalogName + "_cache.fits"
+		print "Debugging: filenameParts", filenameParts
+		catalogCache = filenameParts[-3].split('/')[-1] + "_" + catalogName + "_cache.fits"
 		cached = False
 		if not self.ignorecache:
 			localCacheFolder = self.cachedir

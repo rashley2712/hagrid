@@ -77,8 +77,12 @@ if __name__ == '__main__':
 	#print arg
 	installPath = os.path.realpath(__file__).rsplit('/',1)[0]
 	
-	if arg.archive is None: archivePath="."
-	else: archivePath = arg.archive
+	if arg.archive is None: 
+		archivePath="."
+		noArchive = True
+	else: 
+		archivePath = arg.archive
+		noArchive = False
 	
 	if arg.database is None: 
 		print "The program file is installed at:", installPath
@@ -160,7 +164,9 @@ if __name__ == '__main__':
 	
 	if arg.output is None:
 		for f in fileSubFolders:
-			sys.stdout.write("%s\n"%(os.path.join(archivePath, f)))
+			if noArchive: sys.stdout.write("%s\n"%f[5:])
+ 			else: sys.stdout.write("%s\n"%(os.path.join(archivePath, f)))
+			
 		sys.stdout.flush()
 		outFilename = os.path.join(workingPath, location['name'] + '.list')
 	else:
@@ -169,7 +175,8 @@ if __name__ == '__main__':
 	print "Writing results to: %s"%outFilename
 	outputFile = open(outFilename, 'wt')
 	for f in fileSubFolders:
-		outputFile.write(os.path.join(archivePath, f) + '\n')
+		if noArchive: outputFile.write("%s\n"%f[5:])
+ 		else: outputFile.write(os.path.join(archivePath, f) + '\n')
 	outputFile.close()
 	
 	
