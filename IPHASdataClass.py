@@ -4,7 +4,7 @@ from astropy.vo.client.conesearch import conesearch
 from astropy.vo.client.conesearch import list_catalogs
 from astropy.table import Table, vstack
 from astropy.utils import data
-from matplotlib.path import Path
+import datetime
 
 import numpy, math, os, sys, json
 import generalUtils
@@ -14,7 +14,7 @@ if os.path.exists("noplot"):
 	print "Found a file called 'noplot'. Disabling plotting to desktop."
 	matplotlib.use('Agg')
 import matplotlib.pyplot
-import datetime
+from matplotlib.path import Path
 
 def distance(p1, p2):
 

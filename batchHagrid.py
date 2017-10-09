@@ -85,7 +85,6 @@ if __name__ == '__main__':
 	parser.add_argument('-w', '--workingpath', type=str, help='A root folder for the temporary and output files.')
 	parser.add_argument('-s', '--script', type=str, help='The script to use. By default is will look in the local directory for a file called ''script.template''.')
 	arg = parser.parse_args()
-	print arg
 
 	if arg.list is None:
 		operateFromList = False
