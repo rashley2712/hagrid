@@ -2,6 +2,7 @@ echo on
 set archive /tmp/hagrid
 set plotwindowsize 12
 load r379556-2.fits.fz
+median 3
 draw original
 set maglimit 22
 get cat dr2
@@ -12,6 +13,7 @@ mask dr2
 mask usno
 mask border
 set superpixelsize 25
+set rejectionthreshold 0.7
 make pixels
 set spacinglimit 1
 get pointings 50 top

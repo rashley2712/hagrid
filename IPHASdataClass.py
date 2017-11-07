@@ -17,7 +17,6 @@ import matplotlib.pyplot
 from matplotlib.path import Path
 
 def distance(p1, p2):
-
 	return math.sqrt( (p1[0]-p2[0])**2 + (p1[1]-p2[1])**2 )
 	
 def distanceP(p1, p2):
@@ -57,8 +56,11 @@ class Pointing:
 		else:
 			maxPixel = numpy.ma.min(self.data)
 			position = numpy.unravel_index(numpy.ma.argmin(self.data), self.data.shape)
-		print "max: %4.2f pos: (%3.2f, %3.2f)"%(maxPixel, position[0], position[1])
-		self.peak = maxPixel
+		localData = self.data[position[0]-1:position[0]+2, position[1]-1:position[1]+2]
+		localMean = numpy.ma.mean(localData)
+		print "max: %4.2f 3x3mean: %4.2f -- pos: (%3.2f, %3.2f)"%(maxPixel, localMean, position[0], position[1])
+		# print localData, numpy.shape(localData)
+		self.peak = localMean
 		self.maxPosition = position
 		
 	def getPixelPosition(self):
@@ -221,6 +223,8 @@ class IPHASdataClass:
 			self.__dict__['cachedir'] = str(value)
 		if property=='archive':
 			self.__dict__['archivePath'] = str(value)
+		if property=='rejectionthreshold':
+			self.__dict__['rejectTooManyMaskedPixels'] = float(value)
 			
 	def getStoredObject(self, name):
 		try:
@@ -796,8 +800,9 @@ class IPHASdataClass:
 					
 
 				variance = numpy.ma.var(superPixel)
-				numPixels= numpy.ma.count(superPixel)
-				superPixelObject['varppixel'] = variance/numPixels
+				numUnmaskedPixels= numpy.ma.count(superPixel)
+				numPixels = superPixelSize * superPixelSize
+				superPixelObject['varppixel'] = variance/numUnmaskedPixels
 				if superPixelObject['varppixel']>self.varianceThreshold: 
 					rejectVarCount+= 1
 					continue
@@ -806,13 +811,12 @@ class IPHASdataClass:
 				superPixelObject['maskedpixels'] = numMaskedPixels
 				maskedRatio = float(numMaskedPixels)/float(numPixels)
 				if maskedRatio>self.rejectTooManyMaskedPixels: 
-					# print "too many masked pixels here. Rejecting."
 					rejectMaskCount+=1
 					continue;
 				superPixelList.append(superPixelObject)
 				pixelBitmap[bitmapY, bitmapX] = mean
 				
-		print "%d pixels rejected for having too many masked pixels. Masked pixel ratio > %2.2f%%"%(rejectMaskCount, self.rejectTooManyMaskedPixels)
+		print "%d pixels rejected for having too many masked pixels. Masked pixel ratio > %2.2f"%(rejectMaskCount, self.rejectTooManyMaskedPixels)
 		print "%d pixels rejected for having too large variance. Variance per pixel > %2.2f"%(rejectVarCount, self.varianceThreshold)
 		
 		self.sampledImageFigure = matplotlib.pyplot.figure("Sampled Image", figsize=(self.figSize/1.618, self.figSize))
@@ -847,8 +851,6 @@ class IPHASdataClass:
 		# Sort superpixels
 		if top: self.superPixelList.sort(key=lambda x: x['mean'], reverse=True)
 		else: self.superPixelList.sort(key=lambda x: x['mean'], reverse=False)
-		
-		
 		
 		pointings = []
 		distanceLimitPixels = self.spacingLimit*60/self.pixelScale
