@@ -274,9 +274,10 @@ class commandClass(cmd.Cmd):
 		params = line.split()
 		if params[0]=="badpixels":
 			self.IPHASdata.maskBadPixels()
-			return
-			
-		self.IPHASdata.maskCatalog(line)
+		elif params[0]=="rband":
+			self.IPHASdata.maskrBand()
+                else:
+		        self.IPHASdata.maskCatalog(line)
 		return
 		
 	def do_trim(self, line):

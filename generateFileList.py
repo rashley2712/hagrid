@@ -75,7 +75,7 @@ if __name__ == '__main__':
 	parser.add_argument('--ra', type=float, help='The RA in degrees')
 	arg = parser.parse_args()
 	#print arg
-	installPath = os.path.realpath(__file__).rsplit('/',1)[0]
+	installPath = os.path.dirname(os.path.realpath(__file__))
 	
 	if arg.archive is None: 
 		archivePath="."

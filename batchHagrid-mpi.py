@@ -94,6 +94,7 @@ if __name__ == '__main__':
 	parser.add_argument('-l', '--list', type=str, help='Pass in a list of filenames as a textfile (one filename per line).')
 	parser.add_argument('-w', '--workingpath', type=str, help='A root folder for the temporary and output files.')
 	parser.add_argument('-s', '--script', type=str, help='The script to use. By default is will look in the local directory for a file called ''script.template''.')
+	parser.add_argument('--noplot', action='store_true', help='Set mathplotlib backend to Agg.')
 	arg = parser.parse_args()
 	print arg
     else:
@@ -118,6 +119,12 @@ if __name__ == '__main__':
     else:
 	scriptFile = arg.script
 
+    if arg.noplot:
+        print "noplot",arg.noplot
+        # Force matplotlib to not use any Xwindows backend.
+        import matplotlib
+        matplotlib.use('Agg')
+
     if rank == 0:
 	allObjects = FITScollection()	
 	if not operateFromList:
@@ -139,7 +146,7 @@ if __name__ == '__main__':
 		print "Getting filenames from the list: %s"%arg.list
 		fileList = open(arg.list, 'rt')
 		for line in fileList:
-			allObjects.additem(line.strip())
+			if len(line)>3: allObjects.additem(line.strip())
 		
 	print allObjects
 	allObjects.sort()
@@ -218,10 +225,20 @@ if __name__ == '__main__':
         # -------------
         # slave section
         # -------------
+        # this import has to happen AFTER the noplot check
+        import commandsIPHAS
+	commands = commandsIPHAS.commandClass
+
 	# Load the setup template
 	setupFile = open(scriptFile, 'rt')
 	templateString = setupFile.read()
 	setupFile.close()
+
+        # read IPHASdb
+        from astropy.table import Table
+	installPath = os.path.dirname(os.path.realpath(__file__))
+	dbFilename = os.path.join(installPath, "iphas-images.fits.gz")
+	IPHASdb = Table.read(dbFilename) 
 
         while True:
 	    # Ask for work and check if all is finished
@@ -238,11 +255,17 @@ if __name__ == '__main__':
 	    setupFile.close()
 
 	    #hagridCommand = ["hagrid"]
-	    hagridCommand = ["/home/greimel/Software/bin/python","hagrid.py"]
-	    hagridCommand.append(scriptName)
+	    #hagridCommand = ["/home/greimel/Software/bin/python","hagrid.py","--noplot"]
+	    #hagridCommand.append(scriptName)
 			
-            outfn=os.path.join(workingPath,os.path.split(filename)[1].replace("fits.fz","stdout"))
-            outfh=open(outfn,'wt')
-	    subprocess.call(hagridCommand,stdout=outfh)
+            outfn = os.path.join(workingPath,os.path.split(filename)[1].replace("fits.fz","stdout"))
+            outfh = open(outfn, 'wt')
+	    infh = open(scriptName, 'rt')
+	    #subprocess.call(hagridCommand,stdout=outfh)
+            import IPHASdataClass
+	    commands.IPHASdata = IPHASdataClass.IPHASdataClass()
+	    commands.IPHASdata.originalIPHASdb=IPHASdb
+            commands(stdin=infh,stdout=outfh).cmdloop()
+            infh.close()
             outfh.close()
 	

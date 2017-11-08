@@ -10,9 +10,6 @@ import numpy, math, os, sys, json
 import generalUtils
 import astroquery
 import matplotlib
-if os.path.exists("noplot"):
-	print "Found a file called 'noplot'. Disabling plotting to desktop."
-	matplotlib.use('Agg')
 import matplotlib.pyplot
 from matplotlib.path import Path
 
@@ -44,20 +41,17 @@ class Pointing:
 	def computeAbsoluteLocation(self, wcsSolution):
 		xoffset = self.maxPosition[1]
 		yoffset = self.length - 2 - self.maxPosition[0]
-		self.AbsoluteLocationPixels = (self.x1 + xoffset, 4096 - (self.y1 + yoffset))
+		self.AbsoluteLocationPixels = (self.x1 + xoffset, self.y1 + yoffset)
 		self.ra, self.dec = wcsSolution.all_pix2world([self.AbsoluteLocationPixels[0]], [self.AbsoluteLocationPixels[1]], 1)
-		print "ra, dec", self.ra, self.dec
 		
 	def computeMax(self):
 		""" Finds the max pixel in the data and saves the position as (xmax, ymax) """
-		print "Number of masked pixels in this data:", numpy.ma.count_masked(self.data)
 		if self.type=="Maximum":
 			maxPixel = numpy.ma.max(self.data)
 			position = numpy.unravel_index(numpy.ma.argmax(self.data), self.data.shape)
 		else:
 			maxPixel = numpy.ma.min(self.data)
 			position = numpy.unravel_index(numpy.ma.argmin(self.data), self.data.shape)
-		print "max: %4.2f pos: (%3.2f, %3.2f)"%(maxPixel, position[0], position[1])
 		self.peak = maxPixel
 		self.maxPosition = position
 		
@@ -151,11 +145,27 @@ def maskRadius(object, catalogName, CCDseeing):
 						
 	return r
 	
+def maskRadiusArray(objects, catalogName, CCDseeing):
+	r = numpy.zeros(len(objects),dtype=numpy.float)
+	if catalogName=='dr2':
+		if CCDseeing!=0:
+		    r = r + 3.0 * 1.5 * CCDseeing
+		else:
+		    r = 3.0 * 1.5 * objects['pixelFWHM'] 
+	else:
+                r = r + 50 # base value
+                r = numpy.where(objects['mag']>12, 40*numpy.exp((-objects['mag']+12)/4.), r)
+                r = numpy.where(objects['mag']<8, 250, r)
+                r = numpy.where(objects['mag']<7, 350, r)
+						
+	return r
+	
 
 
 class IPHASdataClass:
 	def __init__(self):
 		print "Initialising an empty IPHAS data class"
+		self.originalIPHASdb = None
 		self.originalImageData = None
 		self.archivePath = "."
 		self.boostedImage = None
@@ -174,7 +184,8 @@ class IPHASdataClass:
 		self.borderSize = 50
 		self.superPixelSize = 50
 		self.spacingLimit = 60./60.  # Minimum spacing of pointings in arcminutes
-		self.rejectTooManyMaskedPixels = 0.70
+		self.rejectTooManyMaskedPixels = 0.7/1.7 #0.70
+                self.rBandRatioLimit = 0.7
 		self.varianceThreshold = 5
 		self.fullDebug = False
 		self.objectStore = {}
@@ -185,42 +196,50 @@ class IPHASdataClass:
 		self.CCDseeing = 0
 		self.rBandImageData = None
 		self.figure = None
+		self.autoplot = True
 		return None
 		
 	
 		
 	def setProperty(self, property, value):
-		truths = ["true", "yes", "on", "1", "Y", "y", "True"]
-		falses = ["false", "no", "off", "0", "N", "n", "False"]
+		truths = ["true", "yes", "on", "1", "y"]
+		falses = ["false", "no", "off", "0", "n"]
+		if property=='archive':
+			self.__dict__['archivePath'] = str(value)
+		if property=="autoplot":
+			if value.lower() in truths:
+				self.autoplot = True
+			if value.lower() in falses:
+				self.autoplot = False
+		if property=='cachedir':
+			self.__dict__['cachedir'] = str(value)
+		if property=="cacheimages":
+			if value.lower() in truths:
+				self.cacheImages = True
+			if value.lower() in falses:
+				self.cacheImages = False
+		if property=='colour' or property=='color':
+			self.__dict__['activeColour'] = str(value)
+		if property=='debug':
+			if value.lower() in truths:
+				self.fullDebug = True
+			if value.lower() in falses:
+				self.fullDebug = False
+		if property=="ignorecache":
+			if value.lower() in truths:
+				self.ignorecache = True
+			if value.lower() in falses:
+				self.ignorecache = False
 		if property=='maglimit':
 			self.__dict__['magLimit'] = float(value)
-		if property=="cacheimages":
-			if value in truths:
-				self.cacheImages = True
-			if value in falses:
-				self.cacheImages = False
-		if property=="ignorecache":
-			if value in truths:
-				self.ignorecache = True
-			if value in falses:
-				self.ignorecache = False
+		if property=='plotwindowsize':
+			self.__dict__['figSize'] = float(value)
+		if property=='rbandratiolimit':
+			self.__dict__['rBandRatioLimit'] = float(value)
 		if property=='superpixelsize':
 			self.__dict__['superPixelSize'] = int(value)
 		if property=='spacinglimit':
 			self.__dict__['spacingLimit'] = float(value)
-		if property=='plotwindowsize':
-			self.__dict__['figSize'] = float(value)
-		if property=='debug':
-			if value in truths:
-				self.fullDebug = True
-			if value in falses:
-				self.fullDebug = False
-		if property=='colour' or property=='color':
-			self.__dict__['activeColour'] = str(value)
-		if property=='cachedir':
-			self.__dict__['cachedir'] = str(value)
-		if property=='archive':
-			self.__dict__['archivePath'] = str(value)
 			
 	def getStoredObject(self, name):
 		try:
@@ -229,6 +248,18 @@ class IPHASdataClass:
 			print "Could not find an object called %s in internal object storage."%name
 		return None	
 		
+	def loadIPHASdb(self):
+	        installPath = os.path.dirname(os.path.realpath(__file__))
+		dbFilename = os.path.join(installPath, "iphas-images.fits.gz")
+	
+		try:
+			self.originalIPHASdb = Table.read(dbFilename) 
+			print "Loaded the %d rows from %s."%(len(self.originalIPHASdb), dbFilename)
+		except IOError as e:
+			print "Could not find the IPHAS database file: %s"%dbFilename
+			return False
+                return True
+
 	def loadFITSFile(self, filename):
 		
 		self.filename = generalUtils.getFITSfilename(filename, self.archivePath, self.cachedir)
@@ -375,44 +406,42 @@ class IPHASdataClass:
 			print "Could not find an object called %s stored internally."%objectName
 	
 	def addCatalog(self, catTable, catalogName):
-		newCatalog = []
+                import time
+                start=time.time()
+
+		newCatalog = Table()
 		columnMapper = catalogMetadata[catalogName]['columns']
 		
-		skippedRowCount = 0
-		for index, row in enumerate(catTable):
-			object={}
-			skipRow = False
-			for key in columnMapper.keys():
-				object[key] = row[columnMapper[key]]
-				if numpy.isnan(float(row[columnMapper[key]])): skipRow = True
-			if skipRow: 
-				skippedRowCount+= 1
-				continue		
-			x, y = self.wcsSolution.all_world2pix([object['ra']], [object['dec']], 1)
-			object['x'] = x[0]
-			object['y'] = y[0]
+                # map columns to new table
+                skipRow = numpy.zeros(len(catTable),dtype=numpy.bool)
+		for key in columnMapper.keys():
+                        newCatalog[key] = catTable[columnMapper[key]]
+                        skipRow = numpy.logical_or(skipRow, numpy.isnan(newCatalog[key].astype(float)))
+
+                # skip rows with missing data
+		skippedRowCount = numpy.sum(skipRow)
+                if skippedRowCount>0:
+                        newCatalog.remove_rows(numpy.where(skipRow)[0])
+
+		newCatalog['x'], newCatalog['y'] = self.wcsSolution.wcs_world2pix(newCatalog['ra'], newCatalog['dec'], 1)
 			
-			newCatalog.append(object)
-			if  ((index+1)%100) == 0:
-				sys.stdout.write("\rCopying: %d of %d."%(index+1, len(catTable)))
-				sys.stdout.flush()
-		sys.stdout.write("\rCopying: %d of %d.\n"%(index+1, len(catTable)))
-		sys.stdout.flush()
-		
 		print "Skipped %d rows because they contained some null data."%skippedRowCount		
-		trimmedCatalog = []
-		for row in newCatalog:
-			if row['x']<0: continue
-			if row['x']>self.width: continue
-			if row['y']<0: continue
-			if row['y']>self.height: continue
-			trimmedCatalog.append(row)
-		print "Rejected %d points for being outside of the CCD x, y pixel boundaries."%(len(newCatalog)-len(trimmedCatalog))
-		newCatalog = trimmedCatalog
+                # remove entries outside CCD
+                trimRow = numpy.zeros(len(newCatalog),dtype=numpy.bool)
+                trimRow = numpy.logical_or(trimRow, newCatalog['x']<0)
+                trimRow = numpy.logical_or(trimRow, newCatalog['x']>self.width)
+                trimRow = numpy.logical_or(trimRow, newCatalog['y']<0)
+                trimRow = numpy.logical_or(trimRow, newCatalog['y']>self.height)
+
+                trimmedRowCount = numpy.sum(trimRow)
+		print "Rejected %d points for being outside of the CCD x, y pixel boundaries."%trimmedRowCount
+                if trimmedRowCount>0:
+                        newCatalog.remove_rows(numpy.where(trimRow)[0])
 
 		print "Adding catalog %s to list of stored catalogs."%catalogName
 		self.catalogs[catalogName] =  newCatalog
 		
+                print catalogName,"Catalogue Time:",time.time()-start
 		return
 				
 	def getRADECmargins(self):
@@ -512,25 +541,52 @@ class IPHASdataClass:
 	def maskBadPixels(self):
 		print "About to mask out the bad pixels for %s"%self.CCD
 		
-		installPath = os.path.realpath(__file__).rsplit('/',1)[0]
+                if self.originalIPHASdb is None:
+                        self.loadIPHASdb()
+
+                # get used confidence map
+                cpmFilename = os.path.join(self.archivePath,"confmaps",self.FITSHeaders["CONFMAP"]+".fz")
+		print "Looking for a local copy at", cpmFilename
+		if not os.path.exists(cpmFilename):
+		        url = "http://www.iphas.org/data/images/confmaps/" + self.FITSHeaders["CONFMAP"]+".fz"
+                        cpmPath=os.path.split(cpmFilename)[0]
+                        if not os.path.exists(cpmPath):
+                                os.makedirs(os.path.normpath(cpmPath))
+			generalUtils.downloadFITS(url, cpmFilename)
+		
+		hdulist = fits.open(cpmFilename)
+                self.badPixelMask = hdulist[int(self.CCD[3:4])].data
+		hdulist.close()
+		
+		if self.mask is None:
+			self.mask = numpy.zeros(numpy.shape(self.originalImageData))
+			print "Creating a new blank mask of size:", numpy.shape(self.mask)
+
+		isMasked = self.badPixelMask<90
+		self.mask[isMasked] = 132
+                if self.autoplot: self.drawMask()
+		return
+			
+	def old_maskBadPixels(self):
+		print "About to mask out the bad pixels for %s"%self.CCD
+		
+		installPath = os.path.dirname(os.path.realpath(__file__))
 		print "Looking for a local copy in", installPath
 		bpmName = "bpm_" + self.CCD + ".fits.fz"
-		url = "http://www.devicecloud.co.uk/WFC/" + bpmName
 		bpmFilename = installPath + "/" + bpmName
 		if not os.path.exists(bpmFilename):
+		        url = "http://www.devicecloud.co.uk/WFC/" + bpmName
 			generalUtils.downloadFITS(url, bpmFilename)
 		
 		hdulist = fits.open(bpmFilename)
-		FITSHeaders = []
 		self.badPixelMask = hdulist[0].data
 		# print "old shape:", numpy.shape(self.badPixelMask)
 		
 		# Trim the bad pixel mask to match observed image size
-		startX = 47
-		startY = 1
-		self.badPixelMask = self.badPixelMask[startY:startY+4096, startX:startX+2048]
-		# print "new shape:", numpy.shape(self.badPixelMask)
-		# print "reqd shape:", numpy.shape(self.originalImageData)
+                # use the information from trimsec
+		startX = 54
+		startY = 0
+		self.badPixelMask = self.badPixelMask[startY:startY+self.height, startX:startX+self.width]
 		
 		if self.mask is None:
 			self.mask = numpy.zeros(numpy.shape(self.originalImageData))
@@ -539,19 +595,54 @@ class IPHASdataClass:
 		if self.CCD == "CCD3":
 			# Add a clipped area to the vignetted part of CCD3
 			vignetteMask = numpy.zeros(numpy.shape(self.originalImageData))
-			for x in range(530):
-				ylim = int(x*(-1.207) + 640)
+                        xcorner=1200 #530
+                        ycorner=1200 #640
+			for x in range(xcorner):
+				ylim = ycorner - (x*ycorner)/xcorner
 				for y in range(ylim):
 					vignetteMask[y,x] = 132
 			cornerMask = vignetteMask == 132
 			self.mask[cornerMask] = 132
 	
+                # augment bad pixel masks (access array with y,x)
+		if self.CCD == "CCD1":
+		        self.badPixelMask[3575,  531] = 1
+                        self.badPixelMask[3639, 1560:1569] = 1
+                        self.badPixelMask[2185:2191, 1555:1560] = 1
+                        self.badPixelMask[ 995:1005, 1762:1769] = 1
+		if self.CCD == "CCD2":
+                        self.badPixelMask[1350:4096, 837] = 1
+                        self.badPixelMask[1063:1068, 1983:1988] = 1
+		if self.CCD == "CCD3":
+                        self.badPixelMask[2801:2880, 1250] = 1
+                        self.badPixelMask[1723:4096, 1224] = 1
+		if self.CCD == "CCD4":
+                    self.badPixelMask[ 900:4096, 548:558] = 1
+                    self.badPixelMask[ 990:1600, 464] = 1
+                    self.badPixelMask[ 980:4096, 388:391] = 1
 	
 		isMasked = self.badPixelMask!=0
 		self.mask[isMasked] = 132
-		self.drawMask()
+                if self.autoplot: self.drawMask()
 		return
 			
+	def maskrBand(self):
+		print "About to mask out the pixels based on rband ratio"
+		if self.mask is None:
+			self.mask = numpy.zeros(numpy.shape(self.originalImageData))
+			print "Creating a new blank mask of size:", numpy.shape(self.mask)
+                # currently assumes that Halpha and r align
+		f=12./(120./float(self.rBand["FITSHeaders"]["EXPTIME"]))
+                print "exposure time factor is",f
+                a = self.originalImageData / self.rBandImageData
+                print numpy.mean(self.originalImageData),numpy.median(self.originalImageData),numpy.min(self.originalImageData),numpy.max(self.originalImageData)
+                print numpy.mean(self.rBandImageData),numpy.median(self.rBandImageData),numpy.min(self.rBandImageData),numpy.max(self.rBandImageData)
+                print numpy.mean(a),numpy.median(a),numpy.min(a),numpy.max(a)
+                isMasked = a < 0.7*f
+                #isMasked = a < 0.7*numpy.median(a)
+		self.mask[isMasked] = 132
+                if self.autoplot: self.drawMask()
+		return
 			
 	def maskCatalog(self, catalogName):
 		if self.mask is None:
@@ -565,7 +656,7 @@ class IPHASdataClass:
 			self.mask[self.height-border:self.height, 0:self.width] = 132
 			self.mask[0:self.height, 0:border] = 132
 			self.mask[0:self.height, self.width-border:self.width] = 132
-			self.drawMask()
+                        if self.autoplot: self.drawMask()
 			return
 			
 		# Retrieve the catalogue
@@ -575,26 +666,18 @@ class IPHASdataClass:
 			print "Could not find a catalog called %s."%catalogName
 			return
 		
-
-		xArray = []
-		yArray = []
-		rArray = []
-		for o in catalog:
-			xArray.append(o['x'])
-			yArray.append(o['y'])
-			rArray.append(maskRadius(o, catalogName, self.CCDseeing))
-			
+                rArray = maskRadiusArray(catalog, catalogName, self.CCDseeing)
 		index = 1	
-		for x, y, r in zip(xArray, yArray, rArray):
-			sys.stdout.write("\rMasking: %d of %d."%(index, len(catalog)))
-			sys.stdout.write(" %f %f %f "%(x, y, r))
-			sys.stdout.flush()
+		for x, y, r in zip(catalog['x'], catalog['y'], rArray):
+			#sys.stdout.write("\rMasking: %d of %d."%(index, len(catalog)))
+			#sys.stdout.write(" %f %f %f "%(x, y, r))
+			#sys.stdout.flush()
 			self.mask = generalUtils.gridCircle(y, x, r, self.mask)
 			index+= 1
-		sys.stdout.write("\n")
-		sys.stdout.flush()
+		#sys.stdout.write("\n")
+		#sys.stdout.flush()
 	
-		self.drawMask()
+                if self.autoplot: self.drawMask()
 		
 	def plotObject(self, objectName):
 		objects = self.getStoredObject(objectName)
@@ -607,14 +690,12 @@ class IPHASdataClass:
 		
 		for index, o in enumerate(objects):
 			position = o.getPixelPosition()
-			# print position
-			# matplotlib.pyplot.plot(o.x, o.y, color = 'r', marker='o', markersize=25, lw=4, fillstyle='none')
 			xoffset = o.maxPosition[1]
 			yoffset = self.superPixelSize - 2 - o.maxPosition[0]
-			# print "offsets", xoffset, yoffset
-			matplotlib.pyplot.plot(o.x1 + xoffset, o.y1 + yoffset , color = colour, marker='o', markersize=15, mew=3, fillstyle='none')
-			matplotlib.pyplot.annotate(str(index), (o.x1+xoffset+20, o.y1+yoffset), color=colour, fontweight='bold', fontsize=15)
-			# if index==2: break
+                        x=o.x1 + xoffset
+                        y=self.height-(o.y1 + yoffset)
+			matplotlib.pyplot.plot(x, y, color = colour, marker='o', markersize=15, mew=3, fillstyle='none')
+			matplotlib.pyplot.annotate(str(index), (x+20, y), color=colour, fontweight='bold', fontsize=15)
 			
 		matplotlib.pyplot.draw()
 		matplotlib.pyplot.show()
@@ -712,129 +793,130 @@ class IPHASdataClass:
 		return
 
 	def makeSuperPixels(self):
-		superPixelList = []
+                import time
+                start=time.time()
+
 		superPixelSize = self.superPixelSize
 		borderMask = self.borderSize	
 		width = self.width
 		height = self.height
 		
 		# Draw the grid on the matplotlib panel
-		matplotlib.pyplot.figure(self.figure.number)
-		# axes = matplotlib.pyplot.gca()
-		for yStep in range(borderMask, self.height-borderMask, superPixelSize):
+                if self.autoplot:
+                    matplotlib.pyplot.figure(self.figure.number)
+		    # axes = matplotlib.pyplot.gca()
+		    for yStep in range(borderMask, self.height-borderMask, superPixelSize):
 			matplotlib.pyplot.plot([borderMask, self.width - borderMask], [yStep, yStep], ls=':', color='g', lw=2)
-		for xStep in range(borderMask, self.width-borderMask, superPixelSize):
+		    for xStep in range(borderMask, self.width-borderMask, superPixelSize):
 			matplotlib.pyplot.plot([xStep, xStep], [borderMask, self.height - borderMask], ls=':', color='r', lw=2)
-		matplotlib.pyplot.draw()
-		matplotlib.pyplot.show()
-		# matplotlib.pyplot.pause(0.01)
+		    matplotlib.pyplot.draw()
+		    matplotlib.pyplot.show()
+		    # matplotlib.pyplot.pause(0.01)
 		# End of drawing
 		
-		imageCopy = numpy.copy(self.originalImageData)
-		booleanMask = numpy.ma.make_mask(self.mask)
-		maskedImageCopy = numpy.ma.masked_array(imageCopy, booleanMask)
-			
 		pixelBitmapWidth = int((width - 2.*borderMask) / superPixelSize) + 1
 		pixelBitmapHeight = int((height - 2.*borderMask) / superPixelSize) + 1
 		pixelBitmap = numpy.zeros((pixelBitmapHeight, pixelBitmapWidth))
 		pixelBitmap.fill(99E9) 
 		
-		rejectMaskCount = 0
-		rejectVarCount = 0
-		index = 0
-		for yStep in range(borderMask, self.height-borderMask, superPixelSize):
-			# matplotlib.pyplot.plot([borderMask, self.width - borderMask], [yStep, yStep], ls=':', color='g')
-			for xStep in range(borderMask, self.width-borderMask, superPixelSize):
-				"""index+=1
-				if index>30: return
-				"""
-				x1 = xStep
-				x2 = xStep + superPixelSize - 1
-				y1 = yStep
-				y2 = yStep + superPixelSize - 1
-				# print xStep, yStep, x1, x2, y1, y2, self.height-y2, self.height-y1
-				superPixel = maskedImageCopy[self.height-y2:self.height-y1, x1:x2]
-				superPixelObject = {}
-				mean = float(numpy.ma.mean(superPixel))
-				if math.isnan(mean): continue;
-				superPixelObject['mean'] = mean
-				superPixelObject['median'] = numpy.ma.median(superPixel)
-				superPixelObject['min'] = numpy.ma.min(superPixel)
-				superPixelObject['max'] = numpy.ma.max(superPixel)
-				superPixelObject['x1'] = x1
-				superPixelObject['y1'] = y1
-				superPixelObject['x2'] = x2
-				superPixelObject['y2'] = y2
-				superPixelObject['xc'] = x1 + superPixelSize/2.
-				superPixelObject['yc'] = y1 + superPixelSize/2.
-				superPixelObject['data'] = superPixel
-				
-				
-				bitmapX = (x1-borderMask)/superPixelSize
-				bitmapY = (y1-borderMask)/superPixelSize
-				
-				if self.fullDebug:
-					matplotlib.pyplot.figure(self.figure.number)
-					matplotlib.pyplot.plot(superPixelObject['xc'], superPixelObject['yc'], color = 'r', marker='x', markersize=25, lw=4, fillstyle='none')
-					matplotlib.pyplot.draw()
-					matplotlib.pyplot.show()
-					matplotlib.pyplot.pause(0.001)
-				
-					self.previewFigure = matplotlib.pyplot.figure("Superpixel", figsize=(self.previewSize, self.previewSize))
-					self.previewFigure.frameon = False
-					self.previewFigure.set_tight_layout(True)
-					axes = matplotlib.pyplot.gca()
-					axes.cla()
-					axes.set_axis_off()
-					self.previewFigure.add_axes(axes)
-					imgplot = matplotlib.pyplot.imshow(numpy.flipud(superPixelObject['data']), cmap="gray_r", interpolation='nearest')
-					matplotlib.pyplot.draw()
-					matplotlib.pyplot.show()
-					matplotlib.pyplot.pause(0.001)
-					print x1, x2, y1, y2, superPixelObject['mean'], superPixelObject['median']
-					raw_input("Press Enter to continue...")
-					
+                # cut image area used for superpixels
+                x1=borderMask
+                x2=borderMask+pixelBitmapWidth*superPixelSize
+                y1=borderMask
+                y2=borderMask+pixelBitmapHeight*superPixelSize
+                # which image data
+                if False:
+                    # original image
+                    imageCopy = numpy.copy(self.originalImageData[y1:y2,x1:x2])
+                    maskCopy = numpy.copy(self.mask[y1:y2,x1:x2])
+                else:
+                    # median filtered
+                    from scipy.signal import medfilt2d
+                    imageCopy = medfilt2d(self.originalImageData)[y1:y2,x1:x2]
+                    maskCopy = numpy.copy(self.mask[y1:y2,x1:x2])
+                    #from scipy.ndimage.filters import convolve
+                    #maskCopy = convolve(self.mask,numpy.array([[1,1,1],[1,1,1],[1,1,1]]),mode="constant",cval=False)
+			
+                # create 4D view into 2D image
+                from numpy.lib.stride_tricks import as_strided as ast
+                block=(superPixelSize,superPixelSize)
+                shape= (imageCopy.shape[0]/ block[0], imageCopy.shape[1]/ block[1])+ block
+                strides= (block[0]* imageCopy.strides[0], block[1]* imageCopy.strides[1])+ imageCopy.strides
+                blockImage = ast(imageCopy, shape= shape, strides= strides)
+                strides= (block[0]* maskCopy.strides[0], block[1]* maskCopy.strides[1])+ maskCopy.strides
+                blockMask= ast(maskCopy, shape= shape, strides= strides)
+                blockBooleanMask = numpy.ma.make_mask(blockMask)
+                blockMaskImage = numpy.ma.masked_array(blockImage, blockBooleanMask)
+                # Create Superpixel table
+		superPixelList=Table()
+                superPixelList['x1'] = range(x1,x2,superPixelSize)*pixelBitmapHeight
+                superPixelList['x2'] = superPixelList['x1'] + superPixelSize - 1
+                superPixelList['xc'] = superPixelList['x1'] + superPixelSize/2.
+                superPixelList['y1'] = numpy.repeat(range(y1,y2,superPixelSize),pixelBitmapWidth)
+                superPixelList['y2'] = superPixelList['y1'] + superPixelSize - 1
+                superPixelList['yc'] = superPixelList['y1'] + superPixelSize/2.
+		superPixelList['mean'] = numpy.ma.mean(blockMaskImage,axis=(2,3)).flatten()
+		superPixelList['median'] = numpy.ma.median(blockMaskImage,axis=(2,3)).flatten()
+		superPixelList['min'] = numpy.ma.min(blockMaskImage,axis=(2,3)).flatten()
+		superPixelList['max'] = numpy.ma.max(blockMaskImage,axis=(2,3)).flatten()
+                # have not found a good solution here yet (this costs TIME)
+                dataList=[]
+                for y in range(blockMaskImage.shape[0]):
+                    for x in range(blockMaskImage.shape[1]):
+                        dataList.append(blockMaskImage[y,x,...])
+		superPixelList['data'] = dataList
 
-				variance = numpy.ma.var(superPixel)
-				numPixels= numpy.ma.count(superPixel)
-				superPixelObject['varppixel'] = variance/numPixels
-				if superPixelObject['varppixel']>self.varianceThreshold: 
-					rejectVarCount+= 1
-					continue
+		variance = numpy.ma.var(blockMaskImage,axis=(2,3)).flatten()
+		numPixels= numpy.ma.count(blockMaskImage,axis=(2,3)).flatten()
+		superPixelList['varppixel'] = variance/numPixels
+		numMaskedPixels = numpy.ma.count_masked(blockMaskImage,axis=(2,3)).flatten()
+		superPixelList['maskedpixels'] = numMaskedPixels
+                #superPixelList.write("test_spl.fits",overwrite=True)
+
+                # reject "bad" rows
+		rejectNanCount = len(superPixelList)
+                superPixelList.remove_rows(numpy.where(numpy.isnan(superPixelList['mean'].astype(float)))[0])
+		rejectNanCount -= len(superPixelList)
 				
-				numMaskedPixels = numpy.ma.count_masked(superPixel)
-				superPixelObject['maskedpixels'] = numMaskedPixels
-				maskedRatio = float(numMaskedPixels)/float(numPixels)
-				if maskedRatio>self.rejectTooManyMaskedPixels: 
-					# print "too many masked pixels here. Rejecting."
-					rejectMaskCount+=1
-					continue;
-				superPixelList.append(superPixelObject)
-				pixelBitmap[bitmapY, bitmapX] = mean
-				
-		print "%d pixels rejected for having too many masked pixels. Masked pixel ratio > %2.2f%%"%(rejectMaskCount, self.rejectTooManyMaskedPixels)
+		rejectVarCount = len(superPixelList)
+                superPixelList.remove_rows(numpy.where(superPixelList['varppixel']>self.varianceThreshold)[0])
+		rejectVarCount -= len(superPixelList)
+
+		rejectMaskCount = len(superPixelList)
+		maskedRatio = superPixelList['maskedpixels'].astype(float)/(superPixelSize*superPixelSize)
+                superPixelList.remove_rows(numpy.where(maskedRatio>self.rejectTooManyMaskedPixels)[0])
+		rejectMaskCount -= len(superPixelList)
+
+		print "%d pixels rejected for being NaN."%(rejectNanCount)
+		print "%d pixels rejected for having too many masked pixels. Masked pixels > %2.2f%%"%(rejectMaskCount, self.rejectTooManyMaskedPixels*100)
 		print "%d pixels rejected for having too large variance. Variance per pixel > %2.2f"%(rejectVarCount, self.varianceThreshold)
 		
-		self.sampledImageFigure = matplotlib.pyplot.figure("Sampled Image", figsize=(self.figSize/1.618, self.figSize))
-		self.sampledImageFigure.frameon = False
-		self.sampledImageFigure.set_tight_layout(True)
-		axes = matplotlib.pyplot.gca()
-		axes.cla()
-		axes.set_axis_off()
-		self.sampledImageFigure.add_axes(axes)
+		bitmapX = (superPixelList['x1']-borderMask)/superPixelSize
+		bitmapY = -1-(superPixelList['y1']-borderMask)/superPixelSize
+		pixelBitmap[bitmapY, bitmapX] = superPixelList['mean']
+
+                if self.autoplot:
+		        self.sampledImageFigure = matplotlib.pyplot.figure("Sampled Image", figsize=(self.figSize/1.618, self.figSize))
+		        self.sampledImageFigure.frameon = False
+		        self.sampledImageFigure.set_tight_layout(True)
+		        axes = matplotlib.pyplot.gca()
+		        axes.cla()
+		        axes.set_axis_off()
+		        self.sampledImageFigure.add_axes(axes)
 		
-		maskedPixelImage = numpy.ma.masked_equal(pixelBitmap, 99E9)
+		        maskedPixelImage = numpy.ma.masked_equal(pixelBitmap, 99E9)
 		
 		
-		# minimumPixel = numpy.min(pixelBitmap)
-		# pixelBitmap[pixelBitmap==99E9] = minimumPixel
+		        # minimumPixel = numpy.min(pixelBitmap)
+		        # pixelBitmap[pixelBitmap==99E9] = minimumPixel
 		
-		imgplot = matplotlib.pyplot.imshow(maskedPixelImage, cmap="hsv", interpolation='nearest')
-		matplotlib.pyplot.draw()
-		matplotlib.pyplot.show()
+		        imgplot = matplotlib.pyplot.imshow(maskedPixelImage, cmap="hsv", interpolation='nearest')
+		        matplotlib.pyplot.draw()
+		        matplotlib.pyplot.show()
 				
 		
 		self.superPixelList = superPixelList
+                print "Superpixel Time:",time.time()-start
 		return 
 		
 	def getRankedPixels(self, number=50):
@@ -845,16 +927,17 @@ class IPHASdataClass:
 			number = abs(number)
 			
 		# Sort superpixels
-		if top: self.superPixelList.sort(key=lambda x: x['mean'], reverse=True)
-		else: self.superPixelList.sort(key=lambda x: x['mean'], reverse=False)
-		
+                # smallest value comes first - hence we need to flip for top
+                sortedIndex = numpy.argsort(self.superPixelList['mean'])
+                if top:
+                        sortedIndex=numpy.flipud(sortedIndex)
 		
 		
 		pointings = []
 		distanceLimitPixels = self.spacingLimit*60/self.pixelScale
 		
-		for index, s in enumerate(self.superPixelList):
-			print index, s['mean'], s['varppixel'], s['xc'], s['yc']
+                for index in sortedIndex:
+                        s=self.superPixelList[index]
 			pointingObject = Pointing()
 			pointingObject.length = self.superPixelSize
 			pointingObject.x1 = s['x1']
@@ -869,19 +952,29 @@ class IPHASdataClass:
 			pointingObject.data = s['data']
 			if top: pointingObject.type = "Maximum"
 			else: pointingObject.type = "Minimum"
-			# Check if this is not near to an existing pointing
+                        # Additional checks if we can choose this pointing
 			reject = False
+			# Check if this is not near to an existing pointing
 			for p in pointings:
 				if distanceP(p, pointingObject) < distanceLimitPixels: 
-					reject=True
+					reject = True
 					break
+		        # Compute the position of max and rband flux
+			if not reject:
+			        pointingObject.computeMax()	
+			        pointingObject.computeAbsoluteLocation(self.wcsSolution)
+                        # check on mean to rband ratio (avoids stars)
+			if not reject and self.rBandImageData is not None:
+                                self.attachRBand(pointingObject,single=True)
+                                if pointingObject.rBandValue is None:
+                                        reject = True
+                                else:
+                                        ratio = pointingObject.mean/pointingObject.rBandValue
+                                        if ratio<self.rBandRatioLimit: reject = True
+                        # end of checks
 			if not reject: pointings.append(pointingObject)
 			if len(pointings)>=number: break;
 		
-		# Compute the position of the max for each pointing and store it internally
-		for p in pointings:
-			p.computeMax()	
-			p.computeAbsoluteLocation(self.wcsSolution)
 		return pointings
 		
 	def clearFigure(self):
@@ -1058,38 +1151,30 @@ class IPHASdataClass:
 		print "Masked range:", numpy.min(self.maskedImage), numpy.max(self.maskedImage)
 		"""
 		
-	def attachRBand(self, pointings):
+	def attachRBand(self, pointings, single=False):
 		""" Attach r-band values to the Halpha pointings
 		"""
 		if self.rBandImageData is None:
 			print "There is no r-band image loaded."
 			return
-		print numpy.shape(self.rBandImageData)
 
-		sources = self.getStoredObject(pointings)
+                if single:
+                        sources = [pointings]
+                else:
+		        sources = self.getStoredObject(pointings)
 
 		for s in sources:
-			#print s.maxPosition, s.AbsoluteLocationPixels[0], s.AbsoluteLocationPixels[1], s.ra, s.dec
 			x, y = self.rBandwcsSolution.all_world2pix(s.ra, s.dec, 1)
 			print s.AbsoluteLocationPixels[0], s.AbsoluteLocationPixels[1], "in Halpha translates to", x[0], y[0], "in r-band."
 			index_x = int(round(x[0]))
 			index_y = int(round(y[0]))
-			print "Index:", index_x, index_y
 			try: 
-				r_value = self.rBandImageData[index_y-1, index_x-1 ]
-				r_value+= self.rBandImageData[index_y-1, index_x ]
-				r_value+= self.rBandImageData[index_y-1, index_x+1 ]
-				r_value+= self.rBandImageData[index_y,   index_x-1]
-				r_value+= self.rBandImageData[index_y,   index_x]
-				r_value+= self.rBandImageData[index_y,   index_x-1]
-				r_value+= self.rBandImageData[index_y+1 ,index_x-1]
-				r_value+= self.rBandImageData[index_y+1 ,index_x]
-				r_value+= self.rBandImageData[index_y+1 ,index_x+1]
-				r_value/=9
-				r_value/=3
-				print r_value
+                                r_value = numpy.mean(self.rBandImageData[index_y-1:index_y+1, index_x-1:index_x+1])
+                                # adjust to exposure time difference
+				r_value/=12./(120./float(self.rBand["FITSHeaders"]["EXPTIME"]))
 				s.rBandValue = r_value
 			except IndexError:
+				s.rBandValue = None
 				print "Outside of CCD limits!"
 		return
 		
@@ -1109,7 +1194,102 @@ class IPHASdataClass:
 		radius = 5./60.
 		print "Looking for a match to %s centred at RA: %f, DEC: %f taken on %f"%(self.filename, ra, dec, JD)
 		
-		installPath = os.path.realpath(__file__).rsplit('/',1)[0]
+                if self.originalIPHASdb is None:
+                        self.loadIPHASdb()
+
+		# Find our field information from run number
+		run = int(self.FITSHeaders['RUN'])
+                runIndex = numpy.where(self.originalIPHASdb["run"]==run)[0][0]
+                fid = self.originalIPHASdb["fieldid"][runIndex]
+
+		# Filter out all but the r-band images for this field and CCD
+                matches = numpy.where((self.originalIPHASdb["band"]=="r")&(self.originalIPHASdb["fieldid"]==fid)&(self.originalIPHASdb["ccd"]==int(self.CCD[3:4])))[0]
+			
+		print "%d images match the filter criterion."%(len(matches))
+		IPHASdb = self.originalIPHASdb[matches]
+
+		dates = IPHASdb['utstart']
+		from astropy.time import Time
+		t = Time(dates, format='isot', scale='utc')
+		print "Taken on:", t.jd
+
+		timeDifference = [(JD - j) * 24 * 60 for j in t.jd]
+		minimum = 1E8
+		closest = -1
+		for index, t in enumerate(timeDifference):	
+			print "%d: %s was taken %.1f minutes"%(index, IPHASdb[index]['url'], abs(t)), 
+			if t<0: print "after",
+			else:
+				print "before",
+			print "the original" 
+			if abs(t) < minimum:
+				minimum = abs(t)
+				closest = index
+
+		closestImage = IPHASdb[closest] 
+		lastSlash =  self.filename.rfind('/')
+		secondLastSlash = self.filename[:lastSlash].rfind('/')
+		archivePath = self.filename[:secondLastSlash]
+		
+		url = closestImage['url']
+		filenameParts = url.split('/')[-2:]
+		filename = generalUtils.getFITSfilename(filenameParts[1], self.archivePath, self.cachedir)
+		print "r band image filename:", filename
+		print "Loading the image:", filename
+		
+
+		self.rBand = { 'FITSHeaders' : {}}
+		hdulist = fits.open(filename)
+		for card in hdulist:
+			# print(card.header.keys())
+			# print(repr(card.header))
+			for key in card.header.keys():
+				self.rBand['FITSHeaders'][key] = card.header[key]
+		import astropy.io.fits as pf
+		self.rBandImageData = pf.getdata(filename, uint=False, do_not_scale_image_data=False)
+		# self.originalImageData =  hdulist[1].data
+		height, width = numpy.shape(self.originalImageData)
+		self.rBandwcsSolution = WCS(hdulist[1].header)
+		print "width, height", width, height, "shape:", numpy.shape(self.rBandImageData)
+		
+		hdulist.close()
+
+		print "Boosting the image"
+		self.rBandBoostedImage = generalUtils.percentiles(numpy.copy(self.rBandImageData), 20, 99)
+                if self.autoplot:
+		        matplotlib.pyplot.ion()
+		        # mplFrame = numpy.rot90(self.boostedImage)
+		        mplFrame = self.rBandBoostedImage
+		        mplFrame = numpy.flipud(mplFrame)
+		        self.figure = matplotlib.pyplot.figure(filename, figsize=(self.figSize/1.618, self.figSize))
+		        self.figure.frameon = False
+		        self.figure.set_tight_layout(True)
+		        axes = matplotlib.pyplot.gca()
+		        axes.set_axis_off()
+		        self.figure.add_axes(axes)
+		        imgplot = matplotlib.pyplot.imshow(mplFrame, cmap="Reds", interpolation='nearest')
+		
+		        matplotlib.pyplot.draw()
+		        matplotlib.pyplot.show(block=False)
+		        matplotlib.pyplot.draw()
+		        # matplotlib.pyplot.pause(0.01)
+		
+
+	def old_findMatch(self):
+		""" Find a match to the current CCD
+		"""
+		
+		# First check that we have a valid image loaded
+		if self.originalImageData is None:
+			print "There is no image loaded. Nothing to try to match to. Load one with the 'load' command."
+			return -1
+		
+		JD = self.FITSHeaders['JD']
+		ra, dec = self.centre
+		radius = 5./60.
+		print "Looking for a match to %s centred at RA: %f, DEC: %f taken on %f"%(self.filename, ra, dec, JD)
+		
+		installPath = os.path.dirname(os.path.realpath(__file__))
 		dbFilename = os.path.join(installPath, "iphas-images.fits.gz")
 	
 		try:
@@ -1193,20 +1373,22 @@ class IPHASdataClass:
 
 		print "Boosting the image"
 		self.rBandBoostedImage = generalUtils.percentiles(numpy.copy(self.rBandImageData), 20, 99)
-		matplotlib.pyplot.ion()
-		# mplFrame = numpy.rot90(self.boostedImage)
-		mplFrame = self.rBandBoostedImage
-		mplFrame = numpy.flipud(mplFrame)
-		self.figure = matplotlib.pyplot.figure(filename, figsize=(self.figSize/1.618, self.figSize))
-		self.figure.frameon = False
-		self.figure.set_tight_layout(True)
-		axes = matplotlib.pyplot.gca()
-		axes.set_axis_off()
-		self.figure.add_axes(axes)
-		imgplot = matplotlib.pyplot.imshow(mplFrame, cmap="Reds", interpolation='nearest')
+                if self.autoplot:
+		        matplotlib.pyplot.ion()
+		        # mplFrame = numpy.rot90(self.boostedImage)
+		        mplFrame = self.rBandBoostedImage
+		        mplFrame = numpy.flipud(mplFrame)
+		        self.figure = matplotlib.pyplot.figure(filename, figsize=(self.figSize/1.618, self.figSize))
+		        self.figure.frameon = False
+		        self.figure.set_tight_layout(True)
+		        axes = matplotlib.pyplot.gca()
+		        axes.set_axis_off()
+		        self.figure.add_axes(axes)
+		        imgplot = matplotlib.pyplot.imshow(mplFrame, cmap="Reds", interpolation='nearest')
 		
-		matplotlib.pyplot.draw()
-		matplotlib.pyplot.show(block=False)
-		matplotlib.pyplot.draw()
-		# matplotlib.pyplot.pause(0.01)
+		        matplotlib.pyplot.draw()
+		        matplotlib.pyplot.show(block=False)
+		        matplotlib.pyplot.draw()
+		        # matplotlib.pyplot.pause(0.01)
 		
+
