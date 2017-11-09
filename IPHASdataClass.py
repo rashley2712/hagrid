@@ -72,10 +72,10 @@ class Pointing:
 		return json.dumps(jsonObject)
 	
 chipNames = {
-	'CCD1': 'A5506-4',
-	'CCD2': 'A5383-17-7',
-	'CCD3': 'A5530-3',
-	'CCD4': 'A5382-1-7'
+        'A5506-4'   : 'CCD1',
+        'A5383-17-7': 'CCD2',
+        'A5530-3'   : 'CCD3',
+        'A5382-1-7' : 'CCD4'
 }
 		
 catalogMetadata = {
@@ -281,12 +281,8 @@ class IPHASdataClass:
 		self.centre = (ra, dec)
 		positionString = generalUtils.toSexagesimal((ra, dec))
 		print "RA, DEC of image centre is: ", positionString, ra, dec
-		try:
-			ccdidentifier = self.FITSHeaders['CCDNAME']
-			for k in chipNames.keys():
-				if ccdidentifier==chipNames[k]:
-					self.CCD = k
-			print "CCD is:", self.CCD
+                try:
+			self.CCD = chipNames[self.FITSHeaders['CCDNAME']]
 		except Exception as e:
 			print "WARNING: Could not identify CCD number (1, 2, 3 or 4)"
 			print e
