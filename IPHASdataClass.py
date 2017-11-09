@@ -195,6 +195,7 @@ class IPHASdataClass:
 		self.cacheImages = False
 		self.CCDseeing = 0
 		self.rBandImageData = None
+		self.rBandFITSHeaders = {}
 		self.figure = None
 		self.autoplot = True
 		return None
@@ -268,21 +269,11 @@ class IPHASdataClass:
 		self.baseFilename = os.path.basename(self.filename)
 		self.rootname = self.baseFilename.split(".")[0]
 		
-		hdulist = fits.open(self.filename)
-		FITSHeaders = []
-		self.rawHeaders = hdulist[0].header
-		for card in hdulist:
-			# print(card.header.keys())
-			# print(repr(card.header))
-			for key in card.header.keys():
-				self.FITSHeaders[key] = card.header[key]
-				if 'WFFBAND' in key:
-					self.filter = card.header[key]
-		import astropy.io.fits as pf
-		self.originalImageData = pf.getdata(self.filename, uint=False, do_not_scale_image_data=False)
-		# self.originalImageData =  hdulist[1].data
+		self.originalImageData, self.FITSHeaders = fits.getdata(self.filename, header=True, uint=False, do_not_scale_image_data=False)
+                if 'WFFBAND' in self.FITSHeaders:
+			self.filter = self.FITSHeaders["WFFBAND"]
 		self.height, self.width = numpy.shape(self.originalImageData)
-		self.wcsSolution = WCS(hdulist[1].header)
+		self.wcsSolution = WCS(self.FITSHeaders)
 		print "width, height", self.width, self.height, "shape:", numpy.shape(self.originalImageData)
 		self.getRADECmargins()
 		imageCentre = (self.width/2, self.height/2)
@@ -300,13 +291,11 @@ class IPHASdataClass:
 			print "WARNING: Could not identify CCD number (1, 2, 3 or 4)"
 			print e
 		
-		try:
+                if "SEEING" in self.FITSHeaders:
 			self.CCDseeing = self.FITSHeaders['SEEING']
-		except Exception as e:
+                else:
 			print "WARNING: Could not find the 'seeing' value for this image in the FITS headers."
 			
-		hdulist.close()
-		
 		return
 		
 	def showVizierCatalogs(self):
@@ -629,7 +618,7 @@ class IPHASdataClass:
 			self.mask = numpy.zeros(numpy.shape(self.originalImageData))
 			print "Creating a new blank mask of size:", numpy.shape(self.mask)
                 # currently assumes that Halpha and r align
-		f=12./(120./float(self.rBand["FITSHeaders"]["EXPTIME"]))
+		f=12./(120./float(self.rBandFITSHeaders["EXPTIME"]))
                 print "exposure time factor is",f
                 a = self.originalImageData / self.rBandImageData
                 print numpy.mean(self.originalImageData),numpy.median(self.originalImageData),numpy.min(self.originalImageData),numpy.max(self.originalImageData)
@@ -1025,15 +1014,8 @@ class IPHASdataClass:
 			cols = fits.ColDefs(cols)
 			tbhdu = fits.BinTableHDU.from_columns(cols)
 			
-			prihdr = fits.Header()
+			prihdr = self.FITSHeaders.copy()
 			prihdr['COMMENT'] = "Created by Hagrid on %s."%( datetime.datetime.ctime(datetime.datetime.now()))
-			
-			for key in self.FITSHeaders.keys():
-				try:
-					# prihdr[key] = str(self.FITSHeaders[key]).encode("ascii")
-					prihdr[key] = self.FITSHeaders[key]
-				except ValueError:
-					print "Warning... could not transfer the header %s to the new FITS file."%(key)
 			
 			prihdu = fits.PrimaryHDU(header=prihdr)
 			thdulist = fits.HDUList([prihdu, tbhdu])
@@ -1165,7 +1147,7 @@ class IPHASdataClass:
 			try: 
                                 r_value = numpy.mean(self.rBandImageData[index_y-1:index_y+1, index_x-1:index_x+1])
                                 # adjust to exposure time difference
-				r_value/=12./(120./float(self.rBand["FITSHeaders"]["EXPTIME"]))
+				r_value/=12./(120./float(self.rBandFITSHeaders["EXPTIME"]))
 				s.rBandValue = r_value
 			except IndexError:
 				s.rBandValue = None
@@ -1232,21 +1214,8 @@ class IPHASdataClass:
 		print "Loading the image:", filename
 		
 
-		self.rBand = { 'FITSHeaders' : {}}
-		hdulist = fits.open(filename)
-		for card in hdulist:
-			# print(card.header.keys())
-			# print(repr(card.header))
-			for key in card.header.keys():
-				self.rBand['FITSHeaders'][key] = card.header[key]
-		import astropy.io.fits as pf
-		self.rBandImageData = pf.getdata(filename, uint=False, do_not_scale_image_data=False)
-		# self.originalImageData =  hdulist[1].data
-		height, width = numpy.shape(self.originalImageData)
-		self.rBandwcsSolution = WCS(hdulist[1].header)
-		print "width, height", width, height, "shape:", numpy.shape(self.rBandImageData)
-		
-		hdulist.close()
+		self.rBandImageData, self.rBandFITSHeaders = fits.getdata(filename, header=True, uint=False, do_not_scale_image_data=False)
+		self.rBandwcsSolution = WCS(self.rBandFITSHeaders)
 
 		print "Boosting the image"
 		self.rBandBoostedImage = generalUtils.percentiles(numpy.copy(self.rBandImageData), 20, 99)
@@ -1348,22 +1317,8 @@ class IPHASdataClass:
 		print "r band image filename:", filename
 		print "Loading the image:", filename
 		
-
-		self.rBand = { 'FITSHeaders' : {}}
-		hdulist = fits.open(filename)
-		for card in hdulist:
-			# print(card.header.keys())
-			# print(repr(card.header))
-			for key in card.header.keys():
-				self.rBand['FITSHeaders'][key] = card.header[key]
-		import astropy.io.fits as pf
-		self.rBandImageData = pf.getdata(filename, uint=False, do_not_scale_image_data=False)
-		# self.originalImageData =  hdulist[1].data
-		height, width = numpy.shape(self.originalImageData)
-		self.rBandwcsSolution = WCS(hdulist[1].header)
-		print "width, height", width, height, "shape:", numpy.shape(self.rBandImageData)
-		
-		hdulist.close()
+		self.rBandImageData, self.rBandFITSHeaders = fits.getdata(filename, header=True, uint=False, do_not_scale_image_data=False)
+		self.rBandwcsSolution = WCS(self.rBandFITSHeaders)
 
 		print "Boosting the image"
 		self.rBandBoostedImage = generalUtils.percentiles(numpy.copy(self.rBandImageData), 20, 99)
