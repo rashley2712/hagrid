@@ -2,6 +2,7 @@
 
 import os, sys, json, argparse, shutil, re, subprocess, datetime, numpy
 from astropy.io import fits
+from astropy.table import Table, vstack
 import matplotlib.pyplot
 
 
@@ -65,30 +66,24 @@ class FITScollection:
 	
 class sourcesClass:
 	def __init__(self):
-		self.HaSources = []
-		self.skySources = []
+		self.HaSources = Table()
+		self.skySources = Table()
 		self.trimmedSources = []
 		self.trimmedSky = []
 		
 	def addSourcesFromFITS(self, filename, sky=False):
 		try:
-			hdulist = fits.open(filename)
-			header = hdulist[0].header
-			tableData = hdulist[1].data
-			cols = hdulist[1].columns
-			added = 0
-			for d in tableData:
-				rowObject = {}
-				for c in cols.names:
-					rowObject[c] = d[c]
-				added+= 1
-				# rowObject['sky_mean'] = -1
-				if not sky:
-					self.HaSources.append(rowObject)
-					totalRows = len(self.HaSources)
-				else:
-					self.skySources.append(rowObject)
-					totalRows = len(self.skySources)
+                    if sky:
+			added = len(self.skySources)
+                        self.skySources = vstack([self.skySources,Table.read(filename)])
+			totalRows = len(self.skySources)
+			added = totalRows-added
+                    else:
+			added = len(self.HaSources)
+                        self.HaSources = vstack([self.HaSources,Table.read(filename)])
+			totalRows = len(self.HaSources)
+			added = totalRows-added
+
 		except IOError as e:
 			print "Could not load: %s"%filename
 			return (-1, -1)
@@ -102,22 +97,17 @@ class sourcesClass:
 			print h
 			
 	def trimSources(self):
-		sourceArray = [ s['mean'] for s in self.HaSources ]
-		skyArray = [ s['mean'] for s in self.skySources ]
-		skyMean = numpy.mean(skyArray[3:])
+		sourceMean = numpy.mean(self.HaSources['mean'][3:])
+		skyMean = numpy.mean(self.skySources['mean'][3:])
+
+                self.HaSources['sky_mean'] = skyMean
+                self.skySources['sky_mean'] = skyMean
+
+                idx = self.HaSources['mean'] > sourceMean
+		self.trimmedSources = self.HaSources[idx]
 		
-		sourceMean = numpy.mean(sourceArray[3:])
-		self.trimmedSources = []
-		for s in self.HaSources: 
-			if s['mean'] > sourceMean: 
-				s['sky_mean'] = skyMean
-				self.trimmedSources.append(s)
-		
-		self.trimmedSky = []
-		for s in self.skySources: 
-			if s['mean'] > skyMean: 
-				s['sky_mean'] = skyMean
-				self.trimmedSky.append(s)
+                idx = self.skySources['mean'] > skyMean
+		self.trimmedSky = self.skySources[idx]
 			
 		print "Trimmed out %d sources from original %d"%(len(self.HaSources) - len(self.trimmedSources),  len(self.HaSources))
 			
@@ -153,7 +143,7 @@ class sourcesClass:
 		
 class FITSdata:
 	def __init__(self):
-		self.sources = []
+		self.sources = Table()
 		
 	def appendFromFile(self, filename):
 		try:
@@ -176,9 +166,8 @@ class FITSdata:
 			return (-1, -1)
 		return (added, len(self.sources))
 		
-	def appendRows(self, rows):
-		for r in rows:
-			self.sources.append(r)
+	def appendRows(self, tab):
+		self.sources = vstack([self.sources, tab])
 		return len(self.sources)
 		
 		
@@ -199,8 +188,10 @@ class FITSdata:
 		cols.append(fits.Column(name='variance', format = 'E', array = [o['variance'] for o in objects]))
 		cols.append(fits.Column(name='type', format = '8A', array = [o['type'] for o in objects]))
 		cols.append(fits.Column(name='CCD', format = '4A', array = [o['CCD'] for o in objects]))
+		cols.append(fits.Column(name='Ha_sky', format = 'E', array = [o['Ha_sky'] for o in objects]))
 		cols.append(fits.Column(name='sky_mean', format = 'E', array = [o['sky_mean'] for o in objects]))
 		cols.append(fits.Column(name='r', format = 'E', array = [o['r'] for o in objects]))
+		cols.append(fits.Column(name='r_sky', format = 'E', array = [o['r_sky'] for o in objects]))
 		cols = fits.ColDefs(cols)
 		tbhdu = fits.BinTableHDU.from_columns(cols)
 			
@@ -209,7 +200,7 @@ class FITSdata:
 			
 		prihdu = fits.PrimaryHDU(header=prihdr)
 		thdulist = fits.HDUList([prihdu, tbhdu])
-		thdulist.writeto(filename, clobber=True)
+		thdulist.writeto(filename, overwrite=True)
 	
 
 
@@ -251,6 +242,7 @@ if __name__ == '__main__':
 		m = sourcesPattern.match(file)
 		if (m): 
 			allSources.additem(file)
+                        continue
 		m = skyPattern.match(file)
 		if (m): 
 			allSky.additem(file)
