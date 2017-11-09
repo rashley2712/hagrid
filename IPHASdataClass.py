@@ -1217,12 +1217,12 @@ class IPHASdataClass:
 		self.rBandImageData, self.rBandFITSHeaders = fits.getdata(filename, header=True, uint=False, do_not_scale_image_data=False)
 		self.rBandwcsSolution = WCS(self.rBandFITSHeaders)
 
-		print "Boosting the image"
-		self.rBandBoostedImage = generalUtils.percentiles(numpy.copy(self.rBandImageData), 20, 99)
                 if self.autoplot:
+		        print "Boosting the image"
+		        rBandBoostedImage = generalUtils.percentiles(numpy.copy(self.rBandImageData), 20, 99)
 		        matplotlib.pyplot.ion()
 		        # mplFrame = numpy.rot90(self.boostedImage)
-		        mplFrame = self.rBandBoostedImage
+		        mplFrame = rBandBoostedImage
 		        mplFrame = numpy.flipud(mplFrame)
 		        self.figure = matplotlib.pyplot.figure(filename, figsize=(self.figSize/1.618, self.figSize))
 		        self.figure.frameon = False
@@ -1320,12 +1320,12 @@ class IPHASdataClass:
 		self.rBandImageData, self.rBandFITSHeaders = fits.getdata(filename, header=True, uint=False, do_not_scale_image_data=False)
 		self.rBandwcsSolution = WCS(self.rBandFITSHeaders)
 
-		print "Boosting the image"
-		self.rBandBoostedImage = generalUtils.percentiles(numpy.copy(self.rBandImageData), 20, 99)
                 if self.autoplot:
+		        print "Boosting the image"
+		        rBandBoostedImage = generalUtils.percentiles(numpy.copy(self.rBandImageData), 20, 99)
 		        matplotlib.pyplot.ion()
 		        # mplFrame = numpy.rot90(self.boostedImage)
-		        mplFrame = self.rBandBoostedImage
+		        mplFrame = rBandBoostedImage
 		        mplFrame = numpy.flipud(mplFrame)
 		        self.figure = matplotlib.pyplot.figure(filename, figsize=(self.figSize/1.618, self.figSize))
 		        self.figure.frameon = False
