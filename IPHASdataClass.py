@@ -987,12 +987,23 @@ class IPHASdataClass:
 			return
 		
 		if outputFormat=="fits" or outputFormat=="votable":
+                        if self.originalIPHASdb is None:
+                                self.loadIPHASdb()
+		        # Find our field information from run number
+		        run = int(self.FITSHeaders['RUN'])
+                        runIndex = numpy.where(self.originalIPHASdb["run"]==run)[0][0]
+		        # Find rband field information from run number
+		        run = int(self.rBandFITSHeaders['RUN'])
+                        rBandrunIndex = numpy.where(self.originalIPHASdb["run"]==run)[0][0]
+                        # number of rows
+                        nr = len(objects)
+
 			objectTable = Table()
 			ids = []
 			for index, o in enumerate(objects):
-				id = self.rootname + "-%02d"%index
-				if o.type=="Minimum": id = "sky-" + self.rootname + "-%02d"%index
-				ids.append(id)
+				oid = self.rootname + "-%02d"%index
+				if o.type=="Minimum": oid = "sky-" + oid
+				ids.append(oid)
 			
 			hdu = fits.PrimaryHDU()
 			cols = []
@@ -1005,8 +1016,10 @@ class IPHASdataClass:
 			cols.append(fits.Column(name='peak', format = 'E', array = [o.peak for o in objects]))
 			cols.append(fits.Column(name='variance', format = 'E', array = [o.varppixel for o in objects]))
 			cols.append(fits.Column(name='type', format = '8A', array = [o.type for o in objects]))
-			cols.append(fits.Column(name='CCD', format = '4A', array = [self.CCD for i in objects]))
+			cols.append(fits.Column(name='CCD', format = '4A', array = [self.CCD]*nr))
+			cols.append(fits.Column(name='Ha_sky', format = 'E', array = [self.originalIPHASdb["skylevel"][runIndex]]*nr))
 			cols.append(fits.Column(name='r', format = 'E', array = [o.rBandValue for o in objects]))
+			cols.append(fits.Column(name='r_sky', format = 'E', array = [self.originalIPHASdb["skylevel"][rBandrunIndex]]*nr))
 			cols = fits.ColDefs(cols)
 			tbhdu = fits.BinTableHDU.from_columns(cols)
 			
