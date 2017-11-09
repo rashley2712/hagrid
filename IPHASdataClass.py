@@ -1019,7 +1019,8 @@ class IPHASdataClass:
 			cols.append(fits.Column(name='CCD', format = '4A', array = [self.CCD]*nr))
 			cols.append(fits.Column(name='Ha_sky', format = 'E', array = [self.originalIPHASdb["skylevel"][runIndex]]*nr))
 			cols.append(fits.Column(name='r', format = 'E', array = [o.rBandValue for o in objects]))
-			cols.append(fits.Column(name='r_sky', format = 'E', array = [self.originalIPHASdb["skylevel"][rBandrunIndex]]*nr))
+		        f=12./(120./float(self.rBandFITSHeaders["EXPTIME"]))
+			cols.append(fits.Column(name='r_sky', format = 'E', array = [self.originalIPHASdb["skylevel"][rBandrunIndex]/f]*nr))
 			cols = fits.ColDefs(cols)
 			tbhdu = fits.BinTableHDU.from_columns(cols)
 			
