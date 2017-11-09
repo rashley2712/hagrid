@@ -406,8 +406,6 @@ class IPHASdataClass:
 			print "Could not find an object called %s stored internally."%objectName
 	
 	def addCatalog(self, catTable, catalogName):
-                import time
-                start=time.time()
 
 		newCatalog = Table()
 		columnMapper = catalogMetadata[catalogName]['columns']
@@ -441,7 +439,6 @@ class IPHASdataClass:
 		print "Adding catalog %s to list of stored catalogs."%catalogName
 		self.catalogs[catalogName] =  newCatalog
 		
-                print catalogName,"Catalogue Time:",time.time()-start
 		return
 				
 	def getRADECmargins(self):
@@ -793,8 +790,6 @@ class IPHASdataClass:
 		return
 
 	def makeSuperPixels(self):
-                import time
-                start=time.time()
 
 		superPixelSize = self.superPixelSize
 		borderMask = self.borderSize	
@@ -916,7 +911,6 @@ class IPHASdataClass:
 				
 		
 		self.superPixelList = superPixelList
-                print "Superpixel Time:",time.time()-start
 		return 
 		
 	def getRankedPixels(self, number=50):
