@@ -39,9 +39,7 @@ class Pointing:
 		return "mean: %3.2f  pos: (%d, %d) masked: %d"%(self.mean, self.x, self.y, numpy.ma.count_masked(self.data))
 	
 	def computeAbsoluteLocation(self, wcsSolution):
-		xoffset = self.maxPosition[1]
-		yoffset = self.length - 2 - self.maxPosition[0]
-		self.AbsoluteLocationPixels = (self.x1 + xoffset, self.y1 + yoffset)
+		self.AbsoluteLocationPixels = (self.x1 + self.maxPosition[0], self.y1 + self.maxPosition[1])
 		self.ra, self.dec = wcsSolution.all_pix2world([self.AbsoluteLocationPixels[0]], [self.AbsoluteLocationPixels[1]], 1)
 		
 	def computeMax(self):
@@ -53,18 +51,17 @@ class Pointing:
 			maxPixel = numpy.ma.min(self.data)
 			position = numpy.unravel_index(numpy.ma.argmin(self.data), self.data.shape)
 		self.peak = maxPixel
-		self.maxPosition = position
-		
+		self.maxPosition = (position[1], position[0]) # store x,y
+
 	def getPixelPosition(self):
-		# return (self.y, self.x)
-		return ( self.y1 + self.maxPosition[0], self.x1 + self.maxPosition[1])
+		return ( self.x1 + self.maxPosition[0], self.y1 + self.maxPosition[1])
 		
 	def toJSON(self):
 		jsonObject = {}
 		jsonObject['xc'] = float(self.x)
 		jsonObject['yc'] = float(self.y)
-		jsonObject['xmax'] = float(self.x + self.maxPosition[1])
-		jsonObject['ymax'] = float(self.y + self.maxPosition[0])
+		jsonObject['xmax'] = float(self.x1 + self.maxPosition[0])
+		jsonObject['ymax'] = float(self.y1 + self.maxPosition[1])
 		jsonObject['ra'] = float(self.ra) 
 		jsonObject['dec'] = float(self.dec) 
 		jsonObject['mean'] = float(self.mean)
@@ -671,11 +668,8 @@ class IPHASdataClass:
 		print "Setting figure number to: ", self.figure.number
 		
 		for index, o in enumerate(objects):
-			position = o.getPixelPosition()
-			xoffset = o.maxPosition[1]
-			yoffset = self.superPixelSize - 2 - o.maxPosition[0]
-                        x=o.x1 + xoffset
-                        y=self.height-(o.y1 + yoffset)
+			x,y = o.getPixelPosition()
+                        y=self.height-y
 			matplotlib.pyplot.plot(x, y, color = colour, marker='o', markersize=15, mew=3, fillstyle='none')
 			matplotlib.pyplot.annotate(str(index), (x+20, y), color=colour, fontweight='bold', fontsize=15)
 			
@@ -705,7 +699,7 @@ class IPHASdataClass:
 		axes.set_axis_off()
 		self.previewFigure.add_axes(axes)
 		imgplot = matplotlib.pyplot.imshow(numpy.flipud(pointingObject.data), cmap="hsv", interpolation='nearest')
-		matplotlib.pyplot.plot(pointingObject.maxPosition[1], self.superPixelSize - 2 - pointingObject.maxPosition[0], color = 'r', marker='o', markersize=25, lw=4, fillstyle='none')
+		matplotlib.pyplot.plot(pointingObject.maxPosition[0], pointingObject.maxPosition[1], color = 'r', marker='o', markersize=25, lw=4, fillstyle='none')
 		matplotlib.pyplot.plot(10, 10, color = 'g', marker='x')
 		matplotlib.pyplot.draw()
 		matplotlib.pyplot.show()
