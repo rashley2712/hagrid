@@ -99,9 +99,12 @@ class sourcesClass:
 	def trimSources(self):
 		sourceMean = numpy.mean(self.HaSources['mean'][3:])
 		skyMean = numpy.mean(self.skySources['mean'][3:])
+		rskyMean = numpy.mean(self.skySources['r'][3:])
 
                 self.HaSources['sky_mean'] = skyMean
                 self.skySources['sky_mean'] = skyMean
+                self.HaSources['r_sky_mean'] = rskyMean
+                self.skySources['r_sky_mean'] = rskyMean
 
                 idx = self.HaSources['mean'] > sourceMean
 		self.trimmedSources = self.HaSources[idx]
@@ -192,6 +195,7 @@ class FITSdata:
 		cols.append(fits.Column(name='sky_mean', format = 'E', array = [o['sky_mean'] for o in objects]))
 		cols.append(fits.Column(name='r', format = 'E', array = [o['r'] for o in objects]))
 		cols.append(fits.Column(name='r_sky', format = 'E', array = [o['r_sky'] for o in objects]))
+		cols.append(fits.Column(name='r_sky_mean', format = 'E', array = [o['r_sky_mean'] for o in objects]))
 		cols = fits.ColDefs(cols)
 		tbhdu = fits.BinTableHDU.from_columns(cols)
 			
