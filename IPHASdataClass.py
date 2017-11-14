@@ -536,6 +536,31 @@ class IPHASdataClass:
 		hdulist = fits.open(cpmFilename)
                 self.badPixelMask = hdulist[int(self.CCD[3:4])].data
 		hdulist.close()
+
+		if self.CCD == "CCD2":
+                    self.badPixelMask[1336:1340, 836:838] = 0
+		if self.CCD == "CCD3":
+                    self.badPixelMask[1690:2771,1225:1234] = 0
+                    self.badPixelMask[2809:2878,1250:1234] = 0
+		if self.CCD == "CCD4":
+                    self.badPixelMask[ 649: 660,1580:1593] = 0
+                    self.badPixelMask[ 235: 250, 183: 186] = 0
+                    self.badPixelMask[ 243: 250, 177: 183] = 0
+                    self.badPixelMask[ 260: 262, 188: 193] = 0
+                    self.badPixelMask[ 209: 212, 149: 153] = 0
+                    self.badPixelMask[ 291: 300, 140: 142] = 0
+                    self.badPixelMask[1006:1009, 272: 274] = 0
+                    self.badPixelMask[1007:1010, 287     ] = 0
+                    self.badPixelMask[ 958: 981, 386: 389] = 0
+                    self.badPixelMask[ 967     , 441     ] = 0
+                    self.badPixelMask[ 982: 985, 440     ] = 0
+                    self.badPixelMask[ 967: 973, 465     ] = 0
+                    self.badPixelMask[ 982: 984, 464     ] = 0
+                    self.badPixelMask[1000:1005, 464     ] = 0
+                    self.badPixelMask[1024:1028, 461: 465] = 0
+                    self.badPixelMask[1028:4096, 463: 466] = 0
+                    self.badPixelMask[ 986:1010, 539: 558] = 0
+                    self.badPixelMask[1008:4096, 547     ] = 0
 		
 		if self.mask is None:
 			self.mask = numpy.zeros(numpy.shape(self.originalImageData))
