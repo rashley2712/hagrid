@@ -208,6 +208,7 @@ class IPHASdataClass:
 		self.CCDseeing = 0
 		self.figure = None
 		self.autoplot = True
+		self.select = False
 		return None
 		
 	
@@ -215,32 +216,19 @@ class IPHASdataClass:
 	def setProperty(self, property, value):
 		truths = ["true", "yes", "on", "1", "y"]
 		falses = ["false", "no", "off", "0", "n"]
+                # logicals (property name : variable name)
+                names={"autoplot":"autoplot","cacheimages":"cacheImages","debug":"fullDebug","ignorecache":"ignorecache","select":"select"}
+                if property in names:
+			if value.lower() in truths:
+				setattr(self,names[property],True)
+			elif value.lower() in falses:
+				setattr(self,names[property],False)
 		if property=='archive':
 			self.__dict__['archivePath'] = str(value)
-		if property=="autoplot":
-			if value.lower() in truths:
-				self.autoplot = True
-			if value.lower() in falses:
-				self.autoplot = False
 		if property=='cachedir':
 			self.__dict__['cachedir'] = str(value)
-		if property=="cacheimages":
-			if value.lower() in truths:
-				self.cacheImages = True
-			if value.lower() in falses:
-				self.cacheImages = False
 		if property=='colour' or property=='color':
 			self.__dict__['activeColour'] = str(value)
-		if property=='debug':
-			if value.lower() in truths:
-				self.fullDebug = True
-			if value.lower() in falses:
-				self.fullDebug = False
-		if property=="ignorecache":
-			if value.lower() in truths:
-				self.ignorecache = True
-			if value.lower() in falses:
-				self.ignorecache = False
 		if property=='maglimit':
 			self.__dict__['magLimit'] = float(value)
 		if property=='plotwindowsize':
@@ -970,18 +958,23 @@ class IPHASdataClass:
 				if distanceP(p, pointingObject) < distanceLimitPixels: 
 					reject = True
 					break
-		        # Compute the position of max and rband flux
-			if not reject:
-			        pointingObject.computeMax()	
-			        pointingObject.computeAbsoluteLocation(self.wcsSolution)
-                        # check on mean to rband ratio (avoids stars)
-			if not reject and self.rBand.ImageData is not None:
-                                self.attach("r",pointingObject,single=True)
-                                if pointingObject.rBandValue is None:
-                                        reject = True
-                                else:
-                                        ratio = pointingObject.mean/pointingObject.rBandValue
-                                        if ratio<self.rBandRatioLimit: reject = True
+			if reject: continue
+		        # Compute the position of max
+			pointingObject.computeMax()	
+			pointingObject.computeAbsoluteLocation(self.wcsSolution)
+                        # do pre-selection if asked
+                        if self.select and top:
+                                # check Halpha flux is within limits
+                                flux=pointingObject.peak - self.imageSky
+                                if flux<10 or flux>5250: continue
+                                # check on mean to rband ratio (avoids stars)
+			        if self.rBand is not None:
+                                        self.attach("r",pointingObject,single=True)
+                                        if pointingObject.rBandValue is None:
+                                                reject = True
+                                        else:
+                                                ratio = pointingObject.mean/pointingObject.rBandValue
+                                                if ratio<self.rBandRatioLimit: reject = True
                         # end of checks
 			if not reject: pointings.append(pointingObject)
 			if len(pointings)>=number: break;
