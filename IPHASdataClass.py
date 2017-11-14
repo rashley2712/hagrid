@@ -157,11 +157,26 @@ def maskRadiusArray(objects, catalogName, CCDseeing):
 						
 	return r
 	
+class FITSImage:
+	def __init__(self):
+		self.ImageData = None
+		self.FITSHeaders = {}
+		self.IPHASdbRow = None
+		self.wcsSolution = None
+		self.boostedImage = None
 
+        def load(self,filename,IPHASdb):
+		self.ImageData, self.FITSHeaders = fits.getdata(filename, header=True, uint=False, do_not_scale_image_data=False)
+		self.wcsSolution = WCS(self.FITSHeaders)
+		run = int(self.FITSHeaders['RUN'])
+                row = numpy.where(IPHASdb["run"]==run)[0][0]
+                self.IPHASdbRow = IPHASdb[row]
 
 class IPHASdataClass:
 	def __init__(self):
 		print "Initialising an empty IPHAS data class"
+                self.rBand=FITSImage()
+                self.iBand=FITSImage()
 		self.originalIPHASdb = None
 		self.originalImageData = None
 		self.archivePath = "."
@@ -191,8 +206,6 @@ class IPHASdataClass:
 		self.cachedir = "/tmp/hagrid/"
 		self.cacheImages = False
 		self.CCDseeing = 0
-		self.rBandImageData = None
-		self.rBandFITSHeaders = {}
 		self.figure = None
 		self.autoplot = True
 		return None
@@ -636,11 +649,11 @@ class IPHASdataClass:
 			self.mask = numpy.zeros(numpy.shape(self.originalImageData))
 			print "Creating a new blank mask of size:", numpy.shape(self.mask)
                 # currently assumes that Halpha and r align
-		f=12./(120./float(self.rBandFITSHeaders["EXPTIME"]))
+		f=12./(120./float(self.rBand.FITSHeaders["EXPTIME"]))
                 print "exposure time factor is",f
-                a = self.originalImageData / self.rBandImageData
+                a = self.originalImageData / self.rBand.ImageData
                 print numpy.mean(self.originalImageData),numpy.median(self.originalImageData),numpy.min(self.originalImageData),numpy.max(self.originalImageData)
-                print numpy.mean(self.rBandImageData),numpy.median(self.rBandImageData),numpy.min(self.rBandImageData),numpy.max(self.rBandImageData)
+                print numpy.mean(self.rBand.ImageData),numpy.median(self.rBand.ImageData),numpy.min(self.rBand.ImageData),numpy.max(self.rBand.ImageData)
                 print numpy.mean(a),numpy.median(a),numpy.min(a),numpy.max(a)
                 isMasked = a < 0.7*f
                 #isMasked = a < 0.7*numpy.median(a)
@@ -962,8 +975,8 @@ class IPHASdataClass:
 			        pointingObject.computeMax()	
 			        pointingObject.computeAbsoluteLocation(self.wcsSolution)
                         # check on mean to rband ratio (avoids stars)
-			if not reject and self.rBandImageData is not None:
-                                self.attachRBand(pointingObject,single=True)
+			if not reject and self.rBand.ImageData is not None:
+                                self.attach("r",pointingObject,single=True)
                                 if pointingObject.rBandValue is None:
                                         reject = True
                                 else:
@@ -1011,9 +1024,6 @@ class IPHASdataClass:
 		        # Find our field information from run number
 		        run = int(self.FITSHeaders['RUN'])
                         runIndex = numpy.where(self.originalIPHASdb["run"]==run)[0][0]
-		        # Find rband field information from run number
-		        run = int(self.rBandFITSHeaders['RUN'])
-                        rBandrunIndex = numpy.where(self.originalIPHASdb["run"]==run)[0][0]
                         # number of rows
                         nr = len(objects)
 
@@ -1037,9 +1047,16 @@ class IPHASdataClass:
 			cols.append(fits.Column(name='type', format = '8A', array = [o.type for o in objects]))
 			cols.append(fits.Column(name='CCD', format = '4A', array = [self.CCD]*nr))
 			cols.append(fits.Column(name='Ha_sky', format = 'E', array = [self.originalIPHASdb["skylevel"][runIndex]]*nr))
-			cols.append(fits.Column(name='r', format = 'E', array = [o.rBandValue for o in objects]))
-		        f=12./(120./float(self.rBandFITSHeaders["EXPTIME"]))
-			cols.append(fits.Column(name='r_sky', format = 'E', array = [self.originalIPHASdb["skylevel"][rBandrunIndex]/f]*nr))
+                        # r-band
+                        if self.rBand is not None:
+			        cols.append(fits.Column(name='r', format = 'E', array = [o.rBandValue for o in objects]))
+		                f=12./(120./float(self.rBand.FITSHeaders["EXPTIME"]))
+			        cols.append(fits.Column(name='r_sky', format = 'E', array = [self.rBand.IPHASdbRow["skylevel"]/f]*nr))
+                        # i-band
+                        if self.iBand is not None:
+			        cols.append(fits.Column(name='i', format = 'E', array = [o.iBandValue for o in objects]))
+		                f=(120./float(self.rBand.FITSHeaders["EXPTIME"]))
+			        cols.append(fits.Column(name='i_sky', format = 'E', array = [self.iBand.IPHASdbRow["skylevel"]/f]*nr))
 			cols = fits.ColDefs(cols)
 			tbhdu = fits.BinTableHDU.from_columns(cols)
 			
@@ -1156,11 +1173,17 @@ class IPHASdataClass:
 		print "Masked range:", numpy.min(self.maskedImage), numpy.max(self.maskedImage)
 		"""
 		
-	def attachRBand(self, pointings, single=False):
-		""" Attach r-band values to the Halpha pointings
+	def attach(self, band, pointings, single=False):
+		""" Attach other band values to the Halpha pointings
 		"""
-		if self.rBandImageData is None:
-			print "There is no r-band image loaded."
+                BandImage=None
+                if band=="r":
+                        BandImage=self.rBand
+                if band=="i":
+                        BandImage=self.iBand
+
+		if BandImage is None:
+			print "There is no "+band+"-band image loaded."
 			return
 
                 if single:
@@ -1169,23 +1192,25 @@ class IPHASdataClass:
 		        sources = self.getStoredObject(pointings)
 
 		for s in sources:
-			x, y = self.rBandwcsSolution.all_world2pix(s.ra, s.dec, 1)
-			print s.AbsoluteLocationPixels[0], s.AbsoluteLocationPixels[1], "in Halpha translates to", x[0], y[0], "in r-band."
+			x, y = BandImage.wcsSolution.all_world2pix(s.ra, s.dec, 1)
+			print s.AbsoluteLocationPixels[0], s.AbsoluteLocationPixels[1], "in Halpha translates to", x[0], y[0], "in", band, "-band."
 			index_x = int(round(x[0]))
 			index_y = int(round(y[0]))
 			try: 
-                                r_value = numpy.mean(self.rBandImageData[index_y-1:index_y+1, index_x-1:index_x+1])
+                                value = numpy.mean(BandImage.ImageData[index_y-1:index_y+1, index_x-1:index_x+1])
                                 # adjust to exposure time difference
-				r_value/=12./(120./float(self.rBandFITSHeaders["EXPTIME"]))
-				s.rBandValue = r_value
+				value/=12./(120./float(BandImage.FITSHeaders["EXPTIME"]))
+                                if band=="r": s.rBandValue = value
+                                if band=="i": s.iBandValue = value
 			except IndexError:
-				s.rBandValue = None
+                                if band=="r": s.rBandValue = None
+                                if band=="i": s.iBandValue = None
 				print "Outside of CCD limits!"
 		return
 		
 		
 
-	def findMatch(self):
+	def findMatch(self,band="r"):
 		""" Find a match to the current CCD
 		"""
 		
@@ -1194,11 +1219,7 @@ class IPHASdataClass:
 			print "There is no image loaded. Nothing to try to match to. Load one with the 'load' command."
 			return -1
 		
-		JD = self.FITSHeaders['JD']
-		ra, dec = self.centre
-		radius = 5./60.
-		print "Looking for a match to %s centred at RA: %f, DEC: %f taken on %f"%(self.filename, ra, dec, JD)
-		
+                # check that IPHASdb is loaded
                 if self.originalIPHASdb is None:
                         self.loadIPHASdb()
 
@@ -1208,30 +1229,35 @@ class IPHASdataClass:
                 fid = self.originalIPHASdb["fieldid"][runIndex]
 
 		# Filter out all but the r-band images for this field and CCD
-                matches = numpy.where((self.originalIPHASdb["band"]=="r")&(self.originalIPHASdb["fieldid"]==fid)&(self.originalIPHASdb["ccd"]==int(self.CCD[3:4])))[0]
+                matches = numpy.where((self.originalIPHASdb["band"]==band)&(self.originalIPHASdb["fieldid"]==fid)&(self.originalIPHASdb["ccd"]==int(self.CCD[3:4])))[0]
 			
-		print "%d images match the filter criterion."%(len(matches))
-		IPHASdb = self.originalIPHASdb[matches]
+                # find closest match
+                if len(matches)>1:
+		        print "%d images match the filter criterion."%(len(matches))
+		        IPHASdb = self.originalIPHASdb[matches]
 
-		dates = IPHASdb['utstart']
-		from astropy.time import Time
-		t = Time(dates, format='isot', scale='utc')
-		print "Taken on:", t.jd
+		        JD = self.FITSHeaders['JD']
+		        dates = IPHASdb['utstart']
+		        from astropy.time import Time
+		        t = Time(dates, format='isot', scale='utc')
+		        print "Taken on:", t.jd
 
-		timeDifference = [(JD - j) * 24 * 60 for j in t.jd]
-		minimum = 1E8
-		closest = -1
-		for index, t in enumerate(timeDifference):	
-			print "%d: %s was taken %.1f minutes"%(index, IPHASdb[index]['url'], abs(t)), 
-			if t<0: print "after",
-			else:
-				print "before",
-			print "the original" 
-			if abs(t) < minimum:
-				minimum = abs(t)
-				closest = index
+		        timeDifference = [(JD - j) * 24 * 60 for j in t.jd]
+		        minimum = 1E8
+		        closest = -1
+		        for index, t in enumerate(timeDifference):	
+			        print "%d: %s was taken %.1f minutes"%(index, IPHASdb[index]['url'], abs(t)), 
+			        if t<0: print "after",
+			        else:
+				        print "before",
+			        print "the original" 
+			        if abs(t) < minimum:
+				        minimum = abs(t)
+				        closest = index
 
-		closestImage = IPHASdb[closest] 
+		        closestImage = IPHASdb[closest] 
+                else:
+		        closestImage = self.originalIPHASdb[matches[0]] 
 		lastSlash =  self.filename.rfind('/')
 		secondLastSlash = self.filename[:lastSlash].rfind('/')
 		archivePath = self.filename[:secondLastSlash]
@@ -1239,19 +1265,24 @@ class IPHASdataClass:
 		url = closestImage['url']
 		filenameParts = url.split('/')[-2:]
 		filename = generalUtils.getFITSfilename(filenameParts[1], self.archivePath, self.cachedir)
-		print "r band image filename:", filename
-		print "Loading the image:", filename
-		
+		print "Loading",band,"band image:", filename
 
-		self.rBandImageData, self.rBandFITSHeaders = fits.getdata(filename, header=True, uint=False, do_not_scale_image_data=False)
-		self.rBandwcsSolution = WCS(self.rBandFITSHeaders)
+		# check which band
+                if band=="r":
+                        self.rBand=FITSImage()
+                        BandImage=self.rBand
+                elif band=="i":
+                        self.iBand=FITSImage()
+                        BandImage=self.iBand
+
+                BandImage.load(filename,self.originalIPHASdb)
 
                 if self.autoplot:
 		        print "Boosting the image"
-		        rBandBoostedImage = generalUtils.percentiles(numpy.copy(self.rBandImageData), 20, 99)
+		        BandImage.BoostedImage = generalUtils.percentiles(numpy.copy(BandImage.ImageData), 20, 99)
 		        matplotlib.pyplot.ion()
 		        # mplFrame = numpy.rot90(self.boostedImage)
-		        mplFrame = rBandBoostedImage
+		        mplFrame = BandImage.BoostedImage
 		        mplFrame = numpy.flipud(mplFrame)
 		        self.figure = matplotlib.pyplot.figure(filename, figsize=(self.figSize/1.618, self.figSize))
 		        self.figure.frameon = False
@@ -1346,15 +1377,15 @@ class IPHASdataClass:
 		print "r band image filename:", filename
 		print "Loading the image:", filename
 		
-		self.rBandImageData, self.rBandFITSHeaders = fits.getdata(filename, header=True, uint=False, do_not_scale_image_data=False)
-		self.rBandwcsSolution = WCS(self.rBandFITSHeaders)
+		self.rBand.ImageData, self.rBand.FITSHeaders = fits.getdata(filename, header=True, uint=False, do_not_scale_image_data=False)
+		self.rBand.wcsSolution = WCS(self.rBand.FITSHeaders)
 
                 if self.autoplot:
 		        print "Boosting the image"
-		        rBandBoostedImage = generalUtils.percentiles(numpy.copy(self.rBandImageData), 20, 99)
+		        rBand.BoostedImage = generalUtils.percentiles(numpy.copy(self.rBandImageData), 20, 99)
 		        matplotlib.pyplot.ion()
 		        # mplFrame = numpy.rot90(self.boostedImage)
-		        mplFrame = rBandBoostedImage
+		        mplFrame = rBand.BoostedImage
 		        mplFrame = numpy.flipud(mplFrame)
 		        self.figure = matplotlib.pyplot.figure(filename, figsize=(self.figSize/1.618, self.figSize))
 		        self.figure.frameon = False

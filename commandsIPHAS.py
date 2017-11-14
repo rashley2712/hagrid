@@ -218,12 +218,21 @@ class commandClass(cmd.Cmd):
 		self.IPHASdata.setProperty(propertyToSet, value)
 		return
 	
+	def do_attach(self, line):
+		""" Attach the pixel values of a band
+                attach [band] [pointingsname]
+		"""
+		params = line.split()
+		if len(params)==2:
+		        self.IPHASdata.attach(params[0],params[1])
+		return
+		
 	def do_attachrband(self, line):
 		params = line.split()
 		if len(params)< 1:
 			print "Usage 'attachrband [pointingsname]'"
 			return
-		self.IPHASdata.attachRBand(params[0])
+		self.IPHASdata.attach("r",params[0])
 
 		return
 	
@@ -253,8 +262,14 @@ class commandClass(cmd.Cmd):
 		
 	def do_match(self, line):
 		""" Find a matching IPHAS image that is closest in RA, DEC centre and Date to the current loaded image
+                match [band]
+                [band] default is 'r'
 		"""
-		self.IPHASdata.findMatch()
+		params = line.split()
+		if len(params)==1:
+		        self.IPHASdata.findMatch(band=params[0])
+                else:
+		        self.IPHASdata.findMatch(band="r")
 		return
 		
 	def do_clear(self,line):
