@@ -1065,19 +1065,22 @@ class IPHASdataClass:
 			cols.append(fits.Column(name='type', format = '8A', array = [o.type for o in objects]))
 			cols.append(fits.Column(name='CCD', format = '4A', array = [self.CCD]*nr))
 			cols.append(fits.Column(name='Ha_sky', format = 'E', array = [self.originalIPHASdb["skylevel"][runIndex]]*nr))
+			cols.append(fits.Column(name='sky_mean', format = 'E', array = [self.imageSky]*nr))
 			cols.append(fits.Column(name='flux', format = 'E', array = [(o.peak-self.imageSky) for o in objects]))
                         # r-band
                         if self.rBand is not None:
 		                f=(120./float(self.rBand.FITSHeaders["EXPTIME"]))/12.
 			        cols.append(fits.Column(name='r', format = 'E', array = [o.rBandValue*f for o in objects]))
 			        cols.append(fits.Column(name='r_sky', format = 'E', array = [self.rBand.IPHASdbRow["skylevel"]*f]*nr))
+			        cols.append(fits.Column(name='r_sky_mean', format = 'E', array = [self.rBand.imageSky*f]*nr))
 		                f=(120./float(self.rBand.FITSHeaders["EXPTIME"]))
 			        cols.append(fits.Column(name='rflux', format = 'E', array = [(o.rBandValue-self.rBand.imageSky)*f for o in objects]))
                         # i-band
                         if self.iBand is not None:
-		                f=120./float(self.rBand.FITSHeaders["EXPTIME"])
+		                f=120./float(self.iBand.FITSHeaders["EXPTIME"])
 			        cols.append(fits.Column(name='i', format = 'E', array = [(o.iBandValue*f) for o in objects]))
 			        cols.append(fits.Column(name='i_sky', format = 'E', array = [self.iBand.IPHASdbRow["skylevel"]*f]*nr))
+			        cols.append(fits.Column(name='i_sky_mean', format = 'E', array = [self.iBand.imageSky*f]*nr))
 			        cols.append(fits.Column(name='iflux', format = 'E', array = [(o.iBandValue-self.iBand.imageSky)*f for o in objects]))
 			cols = fits.ColDefs(cols)
 			tbhdu = fits.BinTableHDU.from_columns(cols)
