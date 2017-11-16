@@ -81,14 +81,14 @@ def gridCircle(x0, y0, radius, grid):
 	decisionOver2 = 1 - x   
 
 	while( y <= x ):
-		grid[ x0: x + x0,  y0: y + y0] = 132 # Octant 1
-		grid[ x0: y + x0,  y0: x + y0] = 132 # Octant 2
-		grid[ -x + x0:x0, y0:y + y0] = 132 # Octant 4
-		grid[ -y + x0: x0, y0:x + y0] = 132 # Octant 3
-		grid[-x + x0:x0, -y + y0:y0] = 132 # Octant 5
-		grid[-y + x0:x0, -x + y0:y0] = 132 # Octant 6
-		grid[ x0:x + x0, -y + y0:y0] = 132 # Octant 7
-		grid[ x0:y + x0, -x + y0:y0] = 132 # Octant 8
+		grid[ x0: x + x0,  y0: y + y0] = True # Octant 1
+		grid[ x0: y + x0,  y0: x + y0] = True # Octant 2
+		grid[ -x + x0:x0, y0:y + y0] = True # Octant 4
+		grid[ -y + x0: x0, y0:x + y0] = True # Octant 3
+		grid[-x + x0:x0, -y + y0:y0] = True # Octant 5
+		grid[-y + x0:x0, -x + y0:y0] = True # Octant 6
+		grid[ x0:x + x0, -y + y0:y0] = True # Octant 7
+		grid[ x0:y + x0, -x + y0:y0] = True # Octant 8
 		y+= 1
 		if (decisionOver2<=0):
 			decisionOver2 += 2 * y + 1;  # Change in decision criterion for y -> y+1

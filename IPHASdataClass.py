@@ -290,6 +290,9 @@ class IPHASdataClass:
                 else:
 			print "WARNING: Could not find the 'seeing' value for this image in the FITS headers."
 			
+                # initialize mask
+		self.mask = numpy.zeros(numpy.shape(self.originalImageData),dtype=numpy.bool)
+
 		return
 		
 	def showVizierCatalogs(self):
@@ -538,6 +541,7 @@ class IPHASdataClass:
                 self.badPixelMask = hdulist[int(self.CCD[3:4])].data
 		hdulist.close()
 
+                # augment bad pixel masks (access array with y,x)
 		if self.CCD == "CCD2":
                     self.badPixelMask[1336:1340, 836:838] = 0
 		if self.CCD == "CCD3":
@@ -563,12 +567,8 @@ class IPHASdataClass:
                     self.badPixelMask[ 986:1010, 539: 558] = 0
                     self.badPixelMask[1008:4096, 547     ] = 0
 		
-		if self.mask is None:
-			self.mask = numpy.zeros(numpy.shape(self.originalImageData))
-			print "Creating a new blank mask of size:", numpy.shape(self.mask)
-
 		isMasked = self.badPixelMask<90
-		self.mask[isMasked] = 132
+		self.mask=numpy.logical_or(self.mask,isMasked)
                 if self.autoplot: self.drawMask()
 		return
 			
@@ -593,10 +593,6 @@ class IPHASdataClass:
 		startY = 0
 		self.badPixelMask = self.badPixelMask[startY:startY+self.height, startX:startX+self.width]
 		
-		if self.mask is None:
-			self.mask = numpy.zeros(numpy.shape(self.originalImageData))
-			print "Creating a new blank mask of size:", numpy.shape(self.mask)
-
 		if self.CCD == "CCD3":
 			# Add a clipped area to the vignetted part of CCD3
 			vignetteMask = numpy.zeros(numpy.shape(self.originalImageData))
@@ -607,7 +603,7 @@ class IPHASdataClass:
 				for y in range(ylim):
 					vignetteMask[y,x] = 132
 			cornerMask = vignetteMask == 132
-			self.mask[cornerMask] = 132
+		        self.mask=numpy.logical_or(self.mask,cornerMask)
 	
                 # augment bad pixel masks (access array with y,x)
 		if self.CCD == "CCD1":
@@ -627,15 +623,12 @@ class IPHASdataClass:
                     self.badPixelMask[ 980:4096, 388:391] = 1
 	
 		isMasked = self.badPixelMask!=0
-		self.mask[isMasked] = 132
+		self.mask=numpy.logical_or(self.mask,isMasked)
                 if self.autoplot: self.drawMask()
 		return
 			
 	def maskrBand(self):
 		print "About to mask out the pixels based on rband ratio"
-		if self.mask is None:
-			self.mask = numpy.zeros(numpy.shape(self.originalImageData))
-			print "Creating a new blank mask of size:", numpy.shape(self.mask)
                 # currently assumes that Halpha and r align
 		f=12./(120./float(self.rBand.FITSHeaders["EXPTIME"]))
                 print "exposure time factor is",f
@@ -645,22 +638,18 @@ class IPHASdataClass:
                 print numpy.mean(a),numpy.median(a),numpy.min(a),numpy.max(a)
                 isMasked = a < 0.7*f
                 #isMasked = a < 0.7*numpy.median(a)
-		self.mask[isMasked] = 132
+		self.mask=numpy.logical_or(self.mask,isMasked)
                 if self.autoplot: self.drawMask()
 		return
 			
 	def maskCatalog(self, catalogName):
-		if self.mask is None:
-			self.mask = numpy.zeros(numpy.shape(self.originalImageData))
-			print "Creating a new blank mask of size:", numpy.shape(self.mask)
-
 		# Mask the border areas
 		if catalogName == 'border':
 			border = self.borderSize
-			self.mask[0:border, 0:self.width] = 132
-			self.mask[self.height-border:self.height, 0:self.width] = 132
-			self.mask[0:self.height, 0:border] = 132
-			self.mask[0:self.height, self.width-border:self.width] = 132
+			self.mask[0:border, 0:self.width] = True
+			self.mask[self.height-border:self.height, 0:self.width] = True
+			self.mask[0:self.height, 0:border] = True
+			self.mask[0:self.height, self.width-border:self.width] = True
                         if self.autoplot: self.drawMask()
 			return
 			
@@ -762,20 +751,14 @@ class IPHASdataClass:
 		# matplotlib.pyplot.savefig("test.png",bbox_inches='tight')
 		
 	def applyMask(self):
-		if self.mask is None:
-			print "There is no mask defined. Define one with the 'mask' command."
-			return
-		
 		if self.originalImageData is None:
 			print "There is no source bitmap defined. Load one with the 'load' command."
 			return
 			
 			
-		booleanMask = numpy.ma.make_mask(numpy.flipud(self.mask))
-		maskedImageData = numpy.ma.masked_array(self.originalImageData,  numpy.logical_not(booleanMask))
+		#booleanMask = numpy.ma.make_mask(numpy.flipud(self.mask))
 		
-		self.maskedImage = maskedImageData
-		
+		self.maskedImage = numpy.ma.array(self.originalImageData, mask=self.mask)
 		matplotlib.pyplot.figure(self.figure.number)
 		axes = matplotlib.pyplot.gca()
 		imgplot = matplotlib.pyplot.imshow(self.maskedImage, cmap="gray_r", interpolation='nearest')
@@ -845,8 +828,7 @@ class IPHASdataClass:
                 blockImage = ast(imageCopy, shape= shape, strides= strides)
                 strides= (block[0]* maskCopy.strides[0], block[1]* maskCopy.strides[1])+ maskCopy.strides
                 blockMask= ast(maskCopy, shape= shape, strides= strides)
-                blockBooleanMask = numpy.ma.make_mask(blockMask)
-                blockMaskImage = numpy.ma.masked_array(blockImage, blockBooleanMask)
+                blockMaskImage = numpy.ma.array(blockImage, mask=blockMask)
                 # Create Superpixel table
 		superPixelList=Table()
                 superPixelList['x1'] = range(x1,x2,superPixelSize)*pixelBitmapHeight
