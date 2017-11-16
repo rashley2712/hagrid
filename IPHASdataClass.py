@@ -196,7 +196,7 @@ class IPHASdataClass:
 		self.borderSize = 50
 		self.superPixelSize = 50
 		self.spacingLimit = 60./60.  # Minimum spacing of pointings in arcminutes
-		self.rejectTooManyMaskedPixels = 0.7/1.7 #0.70
+		self.rejectTooManyMaskedPixels = 0.5 #0.70 -> 0.7/1.7
                 self.rBandRatioLimit = 0.7
 		self.varianceThreshold = 5
 		self.fullDebug = False
