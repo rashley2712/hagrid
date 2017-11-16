@@ -100,11 +100,14 @@ class sourcesClass:
 		sourceMean = numpy.mean(self.HaSources['mean'][3:])
 		skyMean = numpy.mean(self.skySources['mean'][3:])
 		rskyMean = numpy.mean(self.skySources['r'][3:])
+		iskyMean = numpy.mean(self.skySources['i'][3:])
 
                 self.HaSources['sky_mean'] = skyMean
                 self.skySources['sky_mean'] = skyMean
                 self.HaSources['r_sky_mean'] = rskyMean
                 self.skySources['r_sky_mean'] = rskyMean
+                self.HaSources['i_sky_mean'] = iskyMean
+                self.skySources['i_sky_mean'] = iskyMean
 
                 idx = self.HaSources['mean'] > sourceMean
 		self.trimmedSources = self.HaSources[idx]
@@ -178,6 +181,10 @@ class FITSdata:
 		self.sources = sorted(self.sources, key=lambda object: object['mean'], reverse = True)	
 		
 	def writeToFile(self, filename):
+		self.sources.meta['COMMENT'] = "Created by Hagrid (mergeOutput) on %s."%( datetime.datetime.ctime(datetime.datetime.now()))
+                self.sources.write(filename,overwrite=True)
+                return
+
 		objects = self.sources
 		hdu = fits.PrimaryHDU()
 		cols = []
@@ -260,6 +267,8 @@ if __name__ == '__main__':
 	sourcesOutputObject = FITSdata()
 	skyOutputObject = FITSdata()
 	
+        sourcesList = []
+        skyList = []
 	for sourceObject in allSources.objectList:
 		sources = sourcesClass()
 	
@@ -267,18 +276,23 @@ if __name__ == '__main__':
 		skyFilename = HaFilename.replace('sources', 'sky')
 		print HaFilename, skyFilename
 		new, total = sources.addSourcesFromFITS(HaFilename)
-		print "Loaded %d Ha sources"%new
+		#print "Loaded %d Ha sources"%new
 		new, total = sources.addSourcesFromFITS(skyFilename, sky=True)
-		print "Loaded %d sky sources:"%new
+		#print "Loaded %d sky sources:"%new
 		sources.trimSources()
 		
 		# sources.plotSourceHistogram()
 	
-		print "Total sources now %d"%(sourcesOutputObject.appendRows(sources.trimmedSources))
-		print "Total sky now %d"%(skyOutputObject.appendRows(sources.trimmedSky))
+                sourcesList.append(sources.trimmedSources)
+                skyList.append(sources.trimmedSky)
+        #
+        sourcesOutputObject.sources=vstack(sourcesList)
+        print "Total sources now %d"%(len(sourcesOutputObject.sources))
+        skyOutputObject.sources=vstack(skyList)
+        print "Total sky now %d"%(len(skyOutputObject.sources))
 	
-	sourcesOutputObject.sort()
-	skyOutputObject.sort()
+	#sourcesOutputObject.sort()
+	#skyOutputObject.sort()
 	
 	sourcesFilename = arg.output + "_sources.fits"
 	skyFilename = arg.output + "_sky.fits"
@@ -299,7 +313,3 @@ if __name__ == '__main__':
 	
 	print "Writing %d rows to %s."%(len(dataObject.sources), arg.output)
 	dataObject.writeToFile(arg.output)
-		
-
-		
-	
