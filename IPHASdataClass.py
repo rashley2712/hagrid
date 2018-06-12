@@ -375,8 +375,8 @@ class IPHASdataClass:
 				v.ROW_LIMIT = 25000
 				v.column_filters={"r":"<%d"%self.magLimit}
 				# result = Vizier.query_region(coordinates = c, width = skyRA, height = skyDEC, catalog = catalogMetadata[catalogName]['VizierName'], verbose=True)
-				result = v.query_region(coordinates = c, width = width, height = height, verbose=True)
-				print result
+				#result = v.query_region(coordinates = c, width = width, height = height, verbose=True)
+				result = v.query_region(coordinates = c, width = width, height = height, verbose=False, cache=False, catalog = catalogMetadata[catalogName]['VizierName'])
 				newCatalog = result[catalogMetadata[catalogName]['VizierName']]
 				newCatalog.pprint()
 			
