@@ -376,7 +376,11 @@ class IPHASdataClass:
 				v.column_filters={"r":"<%d"%self.magLimit}
 				# result = Vizier.query_region(coordinates = c, width = skyRA, height = skyDEC, catalog = catalogMetadata[catalogName]['VizierName'], verbose=True)
 				#result = v.query_region(coordinates = c, width = width, height = height, verbose=True)
-				result = v.query_region(coordinates = c, width = width, height = height, verbose=False, cache=False, catalog = catalogMetadata[catalogName]['VizierName'])
+                                # catching bad Vizier data
+                                try:
+				    result = v.query_region(coordinates = c, width = width, height = height, verbose=False, cache=False, catalog = catalogMetadata[catalogName]['VizierName'])
+                                except:
+                                    return True
 				newCatalog = result[catalogMetadata[catalogName]['VizierName']]
 				newCatalog.pprint()
 			
@@ -392,7 +396,7 @@ class IPHASdataClass:
 		
 		self.addCatalog(newCatalog, catalogName)
 		
-		return
+		return False
 		
 		
 	def printCatalog(self, catalogName):

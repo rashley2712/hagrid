@@ -196,7 +196,8 @@ class commandClass(cmd.Cmd):
 		if type == "cat":
 			catalogName = line.split()[1]
 			print "Getting ", catalogName
-			self.IPHASdata.getVizierObjects(catalogName)
+			error=self.IPHASdata.getVizierObjects(catalogName)
+                        if error: return True
 		if type == "pointings":
 			number = int(line.split()[1])
 			name = str(line.split()[2])
