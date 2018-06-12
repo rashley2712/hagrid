@@ -164,6 +164,7 @@ class FITSImage:
 		self.IPHASdbRow = None
 		self.wcsSolution = None
 		self.boostedImage = None
+		self.CCDgain = 2.7
 
         def load(self,filename,IPHASdb):
 		self.ImageData, self.FITSHeaders = fits.getdata(filename, header=True, uint=False, do_not_scale_image_data=False)
@@ -171,6 +172,14 @@ class FITSImage:
 		run = int(self.FITSHeaders['RUN'])
                 row = numpy.where(IPHASdb["run"]==run)[0][0]
                 self.IPHASdbRow = IPHASdb[row]
+                if "GAIN" in self.FITSHeaders:
+			self.CCDgain = float(self.FITSHeaders['GAIN'])
+                else:
+			print "WARNING: Could not find the 'gain' value in the FITS header of"+filename
+                        if "-1" in filename: self.CCDgain=2.8
+                        elif "-2" in filename: self.CCDgain=3.0
+                        elif "-3" in filename: self.CCDgain=2.5
+                        elif "-4" in filename: self.CCDgain=2.9
 
 class IPHASdataClass:
 	def __init__(self):
@@ -206,6 +215,7 @@ class IPHASdataClass:
 		self.cachedir = "/tmp/hagrid/"
 		self.cacheImages = False
 		self.CCDseeing = 0
+		self.CCDgain = 2.7
 		self.figure = None
 		self.autoplot = True
 		self.select = False
@@ -288,8 +298,16 @@ class IPHASdataClass:
                 if "SEEING" in self.FITSHeaders:
 			self.CCDseeing = self.FITSHeaders['SEEING']
                 else:
-			print "WARNING: Could not find the 'seeing' value for this image in the FITS headers."
+			print "WARNING: Could not find the 'seeing' value in the FITS header of"+filename
 			
+                if "GAIN" in self.FITSHeaders:
+			self.CCDgain = float(self.FITSHeaders['GAIN'])
+                else:
+			print "WARNING: Could not find the 'gain' value in the FITS header of"+filename
+                        if "-1" in filename: self.CCDgain=2.8
+                        elif "-2" in filename: self.CCDgain=3.0
+                        elif "-3" in filename: self.CCDgain=2.5
+                        elif "-4" in filename: self.CCDgain=2.9
                 # initialize mask
 		self.mask = numpy.zeros(numpy.shape(self.originalImageData),dtype=numpy.bool)
 
@@ -1042,7 +1060,7 @@ class IPHASdataClass:
 			cols.append(fits.Column(name='Ha_sky', format = 'E', array = [self.originalIPHASdb["skylevel"][runIndex]]*nr))
 			cols.append(fits.Column(name='sky_median', format = 'E', array = [self.imageSky]*nr))
                         # flux in e-/s
-		        f = float(self.FITSHeaders["GAIN"]) / float(self.FITSHeaders["EXPTIME"])
+		        f = self.CCDgain / float(self.FITSHeaders["EXPTIME"])
 			cols.append(fits.Column(name='flux', format = 'E', array = [(o.peak-self.imageSky)*f for o in objects]))
                         # r-band
                         if self.rBand is not None:
@@ -1051,7 +1069,7 @@ class IPHASdataClass:
 			        cols.append(fits.Column(name='r_sky', format = 'E', array = [self.rBand.IPHASdbRow["skylevel"]*f]*nr))
 			        cols.append(fits.Column(name='r_sky_median', format = 'E', array = [self.rBand.imageSky*f]*nr))
                                 # flux in e-/s
-		                f = float(self.rBand.FITSHeaders["GAIN"]) / float(self.rBand.FITSHeaders["EXPTIME"])
+		                f = self.rBand.CCDgain / float(self.rBand.FITSHeaders["EXPTIME"])
 			        cols.append(fits.Column(name='rflux', format = 'E', array = [(o.rBandValue-self.rBand.imageSky)*f for o in objects]))
                         # i-band
                         if self.iBand is not None:
@@ -1060,7 +1078,7 @@ class IPHASdataClass:
 			        cols.append(fits.Column(name='i_sky', format = 'E', array = [self.iBand.IPHASdbRow["skylevel"]*f]*nr))
 			        cols.append(fits.Column(name='i_sky_median', format = 'E', array = [self.iBand.imageSky*f]*nr))
                                 # flux in e-/s
-		                f = float(self.iBand.FITSHeaders["GAIN"]) / float(self.iBand.FITSHeaders["EXPTIME"])
+		                f = self.iBand.CCDgain / float(self.iBand.FITSHeaders["EXPTIME"])
 			        cols.append(fits.Column(name='iflux', format = 'E', array = [(o.iBandValue-self.iBand.imageSky)*f for o in objects]))
 			cols = fits.ColDefs(cols)
 			tbhdu = fits.BinTableHDU.from_columns(cols)
